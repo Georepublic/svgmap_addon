@@ -11,13 +11,18 @@ def saveSvgAndLocalTile(url, outDir):
 	svgUrl = urlparse.urlparse(url)
 	fileName = outDir + svgUrl.path
 	print('fileName:%s' % fileName)
-	dirName = os.path.dirname(fileName)
-	if not os.path.exists(dirName):
-		os.makedirs(dirName)
-	res = urllib2.urlopen(svgUrl.geturl())
-	svgFile = open(fileName, 'wb')
-	svgFile.write(res.read())
-	svgFile.close()
+	if not os.path.exists(fileName):
+		dirName = os.path.dirname(fileName)
+		if not os.path.exists(dirName):
+			os.makedirs(dirName)
+		try:
+			res = urllib2.urlopen(svgUrl.geturl())
+			svgFile = open(fileName, 'wb')
+			svgFile.write(res.read())
+			svgFile.close()
+		except Exception as e:
+			print(e.message)
+			return
 	
 	# parse svg
 	tree = ET.parse(fileName)
@@ -30,13 +35,18 @@ def saveSvgAndLocalTile(url, outDir):
 		if not imgUrl.scheme.startswith('http'):
 			imgFileName = outDir + '/' + imgUrl.path
 			print('imgFileName:%s' % imgFileName)
-			imgDirName = os.path.dirname(imgFileName)
-			if not os.path.exists(imgDirName):
-				os.makedirs(imgDirName)
-			imgRes = urllib2.urlopen(urlparse.urljoin(svgUrl.geturl(), imagePath))
-			imgFile = open(imgFileName, 'wb')
-			imgFile.write(imgRes.read())
-			imgFile.close()
+			if not os.path.exists(imgFileName):
+				imgDirName = os.path.dirname(imgFileName)
+				if not os.path.exists(imgDirName):
+					os.makedirs(imgDirName)
+				try:
+					imgRes = urllib2.urlopen(urlparse.urljoin(svgUrl.geturl(), imagePath))
+					imgFile = open(imgFileName, 'wb')
+					imgFile.write(imgRes.read())
+					imgFile.close()
+				except Exception as e:
+					print(e.message)
+					continue
 			
 	# save link svg recursively
 	for anim in root.iter('{http://www.w3.org/2000/svg}animation'):
