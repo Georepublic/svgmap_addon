@@ -1,6 +1,8 @@
 var tag = "svg";
 var self = require("self");
 var pageMod = require("page-mod");
+var baseWindow = require("windows").browserWindow;
+
 
 pageMod.PageMod({
     include: "*",
