@@ -5,7 +5,7 @@ var baseWindow = require("windows").browserWindow;
 
 
 pageMod.PageMod({
-    include: "*",
+    include: ["*", "file://*"],
     contentScriptWhen: "end",
     contentScriptFile: [
 	self.data.url("jquery-1.8.3.min.js"),
