@@ -33,6 +33,7 @@ def saveSvgAndLocalTile(url, outDir):
 		imagePath = img.get('{http://www.w3.org/1999/xlink}href')
 		imgUrl = urlparse.urlparse(imagePath)
 		if not imgUrl.scheme.startswith('http'):
+			imgUrl = urlparse.urlparse(urlparse.urljoin(svgUrl.geturl(), imagePath))
 			imgFileName = outDir + '/' + imgUrl.path
 			print('imgFileName:%s' % imgFileName)
 			if not os.path.exists(imgFileName):
@@ -40,7 +41,7 @@ def saveSvgAndLocalTile(url, outDir):
 				if not os.path.exists(imgDirName):
 					os.makedirs(imgDirName)
 				try:
-					imgRes = urllib2.urlopen(urlparse.urljoin(svgUrl.geturl(), imagePath))
+					imgRes = urllib2.urlopen(imgUrl.geturl())
 					imgFile = open(imgFileName, 'wb')
 					imgFile.write(imgRes.read())
 					imgFile.close()
