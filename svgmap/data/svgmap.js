@@ -1,13 +1,14 @@
-/*
-self.port.on("getElement", function() {
-    var elements = document.getElementsByTagName("svg");
-    console.log(window.innerWidth);
-    for (var i = 0; i < elements.length; i++) {
-	//self.port.emit("gotElement", elements[i].width.baseVal.value);
-	new SVGMapObject(location.pathname, elements[i], null, null);
-    }
-});
-*/
+if (self.port) {
+	// Firefox拡張機能からの呼び出し時
+	self.port.on("getElement", function() {
+		var elements = document.getElementsByTagName("svg");
+		//console.log(window.innerWidth);
+		for (var i = 0; i < elements.length; i++) {
+			//self.port.emit("gotElement", elements[i].width.baseVal.value);
+			new SVGMapObject(location.pathname, elements[i], null, null);
+		}
+	});
+}
 
 var NS_SVG = "http://www.w3.org/2000/svg";
 var NS_XLINK = "http://www.w3.org/1999/xlink";
@@ -17,23 +18,23 @@ var STATUS_INITIALIZED = 0;
 var STATUS_LOADING = 1;
 var STATUS_LOADED = 2;
 
-function SVGMapObject(docPath, svgElem, parentElem, rootObj)
+function SVGMapObject(docPath, svgElem, parentElem, rootParams)
 {
-    console.log("SVGMapObject");
-    this.initialize(docPath, svgElem, parentElem, rootObj);
+	//console.log("SVGMapObject");
+	this.initialize(docPath, svgElem, parentElem, rootParams);
 }
 
 SVGMapObject.prototype = {
-	initialize : function(docPath, svgElem, parentElem, rootObj) {
-		console.log("initialize");
+	initialize : function(docPath, svgElem, parentElem, rootParams) {
+		//console.log("initialize");
 		//this.rootDocument = element;
 		//this.mapx = 138;
 		//this.mapy = 37;
 		//this.zoomRatio = 1.41;
 		//this.mapCanvas = null;
-		this.mapCanvasSize = null;
-		this.rootViewPort = null;
-		this.rootCrs = null;
+		//this.mapCanvasSize = null;
+		//this.rootViewPort = null;
+		//this.rootCrs = null;
 		//this.svgImages = new Array();
 		//this.svgImagesPath = new Array();
 		//this.svgImagesCRS = new Array();
@@ -41,14 +42,13 @@ SVGMapObject.prototype = {
 		this.docPath = docPath;
 		this.svgElem = svgElem;
 		this.parentElem =  parentElem;
-		this.rootObj = rootObj;
+		this.rootParams = rootParams;
 		this.svgObjects = new Object(); // 連想配列(key:path, value:SVGMapParser)
 		this.status = STATUS_INITIALIZED;
 
 		if (this.parentElem == null) {
 			// ルート要素の場合
 			this.svgDoc = document;
-			this.rootObj = this;
 			this.status = STATUS_LOADED
 			this.crs = getCrs(this.svgElem);
 			console.log("crs:", this.crs);
@@ -56,29 +56,20 @@ SVGMapObject.prototype = {
 				// CRSがない場合はSVGMapでないので以降の処理を全てキャンセル
 				return;
 			}
-			console.log("crs:", this.crs);
-			this.rootCrs = this.crs;
-			this.mapCanvasSize = this.getCanvasSize(this.svgElem);
-			console.log("mapCanvasSize:", this.mapCanvasSize);
+			this.rootParams = new Object();
+			this.rootParams.rootCrs = this.crs;
+			this.rootParams.mapCanvasSize = this.getCanvasSize(this.svgElem);
+			//console.log("mapCanvasSize:", this.rootParams["mapCanvasSize"]);
 			this.createZoomButton(this.svgElem);
 			var viewBox = getViewBox(this.svgElem);
-			this.rootViewPort = getRootViewPortFromRootSVG( viewBox , this.mapCanvasSize );
-			console.log("rootViewPort:", this.rootViewPort);
+			this.rootParams.rootViewPort = getRootViewPortFromRootSVG( viewBox , this.rootParams.mapCanvasSize );
+			//console.log("rootViewPort:", this.rootParams.rootViewPort);
 			//this.loadElement(element, docId, docPath);
 			this.parseSVG(this.svgElem, false);
 		} else {
 			// インポートSVGの場合
-			this.mapCanvasSize = rootObj.mapCanvasSize;
-			this.rootViewPort = rootObj.rootViewPort;
-			this.rootCrs = rootObj.rootCrs;
 			loadSVG(this);
 		}
-		
-		console.log("svgDoc:" + this.svgDoc);
-		console.log("docPath:" + this.docPath);
-		console.log("svgElem:" + this.svgElem);
-		console.log("parentElem:" + this.parentElem);
-		console.log("rootObj:" + this.rootObj);
 	},
 
 	loadElement : function(element, docId, docPath) {
@@ -115,8 +106,8 @@ SVGMapObject.prototype = {
 	downButton.setAttribute("stroke", "black");
 	downButton.setAttribute("fill", "white");
 	downButton.setAttribute("id", "zoomdown");
-	element.appendChild(downButton);
-	buttonGroup.addEventListener("click", this.zoomdown, false);
+	buttonGroup.appendChild(downButton);
+	downButton.addEventListener("click", this.zoomdown, false);
 	element.appendChild(buttonGroup);
     },
 
@@ -129,28 +120,28 @@ SVGMapObject.prototype = {
 
 	refreshWindowSize : function() {
 		console.log("refreshViewPortSize()");//
-		var prevS2C = getRootSvg2Canvas(this.rootViewPort , this.mapCanvasSize)
-		var pervCenterX = this.rootViewPort.x + 0.5 * this.rootViewPort.width;
-		var pervCenterY = this.rootViewPort.y + 0.5 * this.rootViewPort.height;
+		var prevS2C = getRootSvg2Canvas(this.rootParams.rootViewPort , this.rootParams.mapCanvasSize)
+		var pervCenterX = this.rootParams.rootViewPort.x + 0.5 * this.rootParams.rootViewPort.width;
+		var pervCenterY = this.rootParams.rootViewPort.y + 0.5 * this.rootParams.rootViewPort.height;
 		
-		this.mapCanvasSize = this.getCanvasSize(this.element);
+		this.rootParams.mapCanvasSize = this.getCanvasSize(this.element);
 		
-		this.rootViewPort.width  = this.mapCanvasSize.width  / prevS2C.a;
-		this.rootViewPort.height = this.mapCanvasSize.height / prevS2C.d;
+		this.rootParams.rootViewPort.width  = this.rootParams.mapCanvasSize.width  / prevS2C.a;
+		this.rootParams.rootViewPort.height = this.rootParams.mapCanvasSize.height / prevS2C.d;
 		
-		this.rootViewPort.x = pervCenterX - 0.5 * this.rootViewPort.width;
-		this.rootViewPort.y = pervCenterY - 0.5 * this.rootViewPort.height;
-		dynamicLoad( "root", mapCanvas);
+		this.rootParams.rootViewPort.x = pervCenterX - 0.5 * this.rootParams.rootViewPort.width;
+		this.rootParams.rootViewPort.y = pervCenterY - 0.5 * this.rootParams.rootViewPort.height;
+		// TODO:
+		//dynamicLoad( "root", mapCanvas);
 	},
 	
 	parseSVG : function(svgElem , eraseAll) {
-		var s2c = getRootSvg2Canvas(this.rootViewPort, this.mapCanvasSize);
+		var s2c = getRootSvg2Canvas(this.rootParams.rootViewPort, this.rootParams.mapCanvasSize);
 		var zoom = getZoom(s2c);
-		console.log("S2C.a:" + s2c.a + " S2C.d:" + s2c.d);//
-		console.log(this.parentElem);//
+		//console.log("S2C:", s2c);
 		// svgElemは(初回は)svg文書のルート要素 , docPathはこのSVG文書のパス eraseAll==trueで対応要素を無条件消去	
 		
-		console.log(this.docPath);//
+		//console.log(this.docPath);
 		var svgNodes = svgElem.childNodes;
 		//var crs = this.crs;
 		var docDir = this.docPath.substring(0, this.docPath.lastIndexOf("/")+1);
@@ -163,43 +154,42 @@ SVGMapObject.prototype = {
 			if (svgNode.nodeName == "animation") {
 				// animation要素の場合
 				
-				var ip = getAnimationProps(svgNode); // x,y,w,h,href読み込み
+				var ap = getAnimationProps(svgNode); // x,y,w,h,href読み込み
 				
-				var imageRect = ip;
+				var animationRect = ap;
 				if (this.parentElem == null) {
-					imageRect = ip;
+					animationRect = ap;
 				} else {
-					imageRect = child2rootSVGrect(ip, this.rootCrs, this.crs);
+					animationRect = child2rootSVGrect(ap, this.rootParams.rootCrs, this.crs);
 				}
-				
-				console.log("--  " + this.docPath);
-				console.log(ip);
-				console.log(imageRect);
-				console.log("--");
-				
-				var path = docDir + ip.href;
+				var path = docDir + ap.href;
 				var svgObj = this.svgObjects[path];
+				var inArea = isIntersect(animationRect, this.rootParams.rootViewPort);
+				var inZoom = inZoomRange(ap, zoom);
 
-				if (!eraseAll && isIntersect(imageRect, this.rootViewPort)
-					&& inZoomRange(ip, zoom)) {
+				/*
+				console.log("--  " + this.docPath);
+				console.log("ap:", ap);
+				console.log("animationRect:", animationRect);
+				console.log("zoom:", zoom);
+				console.log("inArea:" + inArea);
+				console.log("inZoom:" + inZoom);
+				console.log("--");
+				*/
+				if (!eraseAll && inArea && inZoom) {
 					// ロードすべきイメージの場合
 					
-					var imgBox = getTransformedBox( imageRect , s2c );
+					//var animBox = getTransformedBox(animationRect , s2c);
 					
 					if (svgObj == null) { 
 						// ロードされていないとき
-						console.log("docPath:" + this.docPath + " docDir:" + docDir + " href:" + ip.href);
-						console.log("load:"+ip.href);
+						console.log("Loading:" + path);
 						// g要素を生成し、animation要素の前に挿入
 						var g = this.svgDoc.createElementNS(NS_SVG, "g");
 						g.setAttribute("id", path);
 						svgNode.parentNode.insertBefore(g, svgNode);
 						// オブジェクト作成と同時にロード
-						this.svgObjects[path] = new SVGMapObject(path, null, g, this.rootObj);
-					} else if (svgObj.status == STATUS_LOADED) {
-						// ロードされているとき
-						console.log("AlreadyLoaded:" + path);
-						svgObj.parseSVG(svgObj.svgElem, false);
+						this.svgObjects[path] = new SVGMapObject(path, null, g, this.rootParams);
 					}
 				} else {
 					// ロードすべきでないイメージの場合
@@ -239,7 +229,7 @@ function loadSVG(svgObj) {
 	svgObj.status = STATUS_LOADING;
 	var httpObj = createXMLHttpRequest(function() { handleResult(svgObj, this) } );
 	if (httpObj) {
-		console.log("docPath:" + svgObj.docPath);//
+		//console.log("docPath:" + svgObj.docPath);
 		httpObj.open("GET", svgObj.docPath, true);
 		httpObj.send(null);
 	}
@@ -249,8 +239,8 @@ function handleResult(svgObj, httpRes) {
 
 	if (httpRes.readyState == 4) {
 		if (httpRes.status == 200) {
-			console.log("called HandleResult path:" + svgObj.docPath);//
-			console.log("End loading");
+			//console.log("called HandleResult path:" + svgObj.docPath);//
+			//console.log("End loading");
 			//var text = getAjaxFilter()(httpRes.responseText); // レスポンスの確認用です
 			//console.log(text);
 			if (httpRes.responseXML.documentElement) {
@@ -262,7 +252,7 @@ function handleResult(svgObj, httpRes) {
 			svgObj.crs = getCrs(svgObj.svgElem);
 			if (svgObj.crs == null) {
 				// ルートと同じにしておく
-				svgObj.crs = svgObj.rootCrs;
+				svgObj.crs = svgObj.rootParams.rootCrs;
 			}
 			svgObj.state = STATUS_LOADED;
 			//console.log("docPath:" + svgObj.docPath);
@@ -328,6 +318,7 @@ function getCrs(svgElem) {
 	var crs;
 	for (var i = 0; i < svgElem.childNodes.length; i++) {
 		var node = svgElem.childNodes[i];
+		// tagNameは、HTMLDomでは小文字、SVGDomでは大小文字
 		if (node.nodeType == 1 && node.tagName.toLowerCase() == "globalcoordinatesystem") {
 			crs = node.getAttribute("transform").replace("matrix(","").replace(")","").split(",");
 			break;
@@ -364,6 +355,7 @@ function getViewBox( svgElem ){
 	}
 }
 
+/*
 function getTransformedBox( inBox , matrix ){
 	// b,c==0のときのみの簡易関数・・
 	if ( matrix.b == 0 && matrix.c == 0){
@@ -394,6 +386,7 @@ function getTransformedBox( inBox , matrix ){
 		return ( null );
 	}
 }
+*/
 
 function Geo2SVG( lat , lng , crs ){
 	return {
@@ -471,7 +464,7 @@ function inZoomRange( ip , zoom ){
 	if ( !ip.minZoom && !ip.maxZoom ){
 		return ( true );
 	} else {
-		console.log("EVAL ZOOM : zoom:" + zoom + " min:" + ip.minZoom + " max:" + ip.maxZoom);
+		//console.log("EVAL ZOOM : zoom:" + zoom + " min:" + ip.minZoom + " max:" + ip.maxZoom);
 		if ( ip.minZoom && zoom < ip.minZoom ){
 			return(false);
 		}
@@ -487,41 +480,52 @@ function getZoom( s2c ){
 		return ( ( Math.abs(s2c.a) + Math.abs(s2c.d) ) / 2.0 );
 }
 
-function getAnimationProps( animE ){
+function getAnimationProps(animE) {
 	var x = Number(animE.getAttribute("x"));
 	var y = Number(animE.getAttribute("y"));
 	var width = Number(animE.getAttribute("width"));
 	var height = Number(animE.getAttribute("height"));
 	var href = animE.getAttribute("xlink:href");
-	var minZoom = Number(animE.getAttribute("visibleMinZoom"))/100;
-	var maxZoom = Number(animE.getAttribute("visibleMaxZoom"))/100;
+	// visibleXXXZoom属性は、HTMLDomでは小文字、SVGDomでは大小文字
+	var minZoom = 0;
+	if (animE.hasAttribute("visibleMinZoom")) {
+		minZoom = Number(animE.getAttribute("visibleMinZoom"))/100;
+	} else if (animE.hasAttribute("visibleminzoom")) {
+		minZoom = Number(animE.getAttribute("visibleminzoom"))/100;
+	}
+	var maxZoom = 0;
+	if (animE.hasAttribute("visibleMaxZoom")) {
+		maxZoom = Number(animE.getAttribute("visibleMaxZoom"))/100;
+	} else if (animE.hasAttribute("visiblemaxzoom")) {
+		maxZoom = Number(animE.getAttribute("visiblemaxzoom"))/100;
+	}
 	
 	return {
-		x : x ,
-		y : y ,
-		width : width ,
-		height : height ,
-		href : href ,
-		minZoom : minZoom ,
+		x : x,
+		y : y,
+		width : width,
+		height : height,
+		href : href,
+		minZoom : minZoom,
 		maxZoom : maxZoom
 	}
 }
 
 // HTTP通信用、共通関数
 function createXMLHttpRequest(cbFunc){
-	console.log("createXMLHttpRequest:" + cbFunc);//
+	//console.log("createXMLHttpRequest:" + cbFunc);
 	var XMLhttpObject = null;
 	try{
 		XMLhttpObject = new XMLHttpRequest();
-		console.log("use standard ajax");//
+		//console.log("use standard ajax");//
 	}catch(e){
 		try{
 			XMLhttpObject = new ActiveXObject("Msxml2.XMLHTTP");
-//			console.log("use Msxml2 ajax");
+			//console.log("use Msxml2 ajax");
 		}catch(e){
 			try{
 				XMLhttpObject = new ActiveXObject("Microsoft.XMLHTTP");
-//				console.log("use Microsoft ajax");
+				//console.log("use Microsoft ajax");
 			}catch(e){
 				return null;
 			}
@@ -545,7 +549,7 @@ function getAjaxFilter() {
 }
 
 function isIntersect( sec1 , sec2 ){
-	console.log( sec1 , sec2 );
+	//console.log( sec1 , sec2 );
 	var ans = false;
 	if ( sec1.x > sec2.x + sec2.width || sec2.x > sec1.x + sec1.width 
 	 || sec1.y > sec2.y + sec2.height || sec2.y > sec1.y + sec1.height ){
