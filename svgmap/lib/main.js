@@ -8,7 +8,6 @@ pageMod.PageMod({
     include: ["*", "file://*"],
     contentScriptWhen: "end",
     contentScriptFile: [
-	self.data.url("jquery-1.8.3.min.js"),
 	self.data.url("svgmap.js")
     ],
     onAttach: function(worker) {
