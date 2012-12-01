@@ -254,6 +254,22 @@ function handleResult(svgObj, httpRes) {
 				// ルートと同じにしておく
 				svgObj.crs = svgObj.rootParams.rootCrs;
 			}
+			// 子要素を全て追加
+			var svgNodes = svgObj.svgElem.childNodes;
+			for (var i = 0; i < svgNodes.length; i++) {
+				var svgNode = svgNodes[i];
+				if (svgNode.nodeType != 1) {
+					continue;
+				}
+				if (svgNode.tagName == "metadata"
+					|| svgNode.tagName.toLowerCase() == "globalcoordinatesystem") {
+					continue;
+				}
+				
+				// TODO:座標操作が必要
+				console.log("childSvgNode:", svgNode);
+				svgObj.parentElem.appendChild(svgNode);
+			}
 			svgObj.state = STATUS_LOADED;
 			//console.log("docPath:" + svgObj.docPath);
 			//console.log("docText:" + httpRes.responseText);
