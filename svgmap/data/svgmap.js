@@ -1,3 +1,4 @@
+/*
 self.port.on("getElement", function() {
     var elements = document.getElementsByTagName("svg");
     console.log(window.innerWidth);
@@ -6,6 +7,7 @@ self.port.on("getElement", function() {
 	new SVGMapObject(location.pathname, elements[i], null, null);
     }
 });
+*/
 
 var NS_SVG = "http://www.w3.org/2000/svg";
 var NS_XLINK = "http://www.w3.org/1999/xlink";
@@ -152,8 +154,8 @@ SVGMapObject.prototype = {
 		var svgNodes = svgElem.childNodes;
 		//var crs = this.crs;
 		var docDir = this.docPath.substring(0, this.docPath.lastIndexOf("/")+1);
-		for (var i = 0 ; i < svgNodes.length ; i++) {
-			console.log("node:" + i + "/" + svgNodes.length + " : " +svgNodes[i].nodeName);
+		for (var i = 0; i < svgNodes.length; i++) {
+			//console.log("node:" + i + "/" + svgNodes.length + " : " +svgNodes[i].nodeName);
 			var svgNode = svgNodes[i];
 			if (svgNode.nodeType != 1) {
 				continue;
@@ -249,8 +251,8 @@ function handleResult(svgObj, httpRes) {
 		if (httpRes.status == 200) {
 			console.log("called HandleResult path:" + svgObj.docPath);//
 			console.log("End loading");
-			var text = getAjaxFilter()(httpRes.responseText); // レスポンスの確認用です//
-			console.log(text);//
+			//var text = getAjaxFilter()(httpRes.responseText); // レスポンスの確認用です
+			//console.log(text);
 			if (httpRes.responseXML.documentElement) {
 				svgObj.svgDoc = httpRes.responseXML;
 			} else {
@@ -263,10 +265,8 @@ function handleResult(svgObj, httpRes) {
 				svgObj.crs = svgObj.rootCrs;
 			}
 			svgObj.state = STATUS_LOADED;
-			console.log("docPath:" + svgObj.docPath);//
-			console.log("docText:" + httpRes.responseText);//
-			console.log("svgDoc:" + svgObj.svgDoc);
-			console.log("svgElem:" + svgObj.svgElem);
+			//console.log("docPath:" + svgObj.docPath);
+			//console.log("docText:" + httpRes.responseText);
 			svgObj.parseSVG(svgObj.svgElem, false);
 		} else {
 			svgObj.state = STATUS_FAILED;
@@ -328,7 +328,7 @@ function getCrs(svgElem) {
 	var crs;
 	for (var i = 0; i < svgElem.childNodes.length; i++) {
 		var node = svgElem.childNodes[i];
-		if (node.nodeType == 1 && node.tagName == "globalCoordinateSystem") {
+		if (node.nodeType == 1 && node.tagName.toLowerCase() == "globalcoordinatesystem") {
 			crs = node.getAttribute("transform").replace("matrix(","").replace(")","").split(",");
 			break;
 		}
