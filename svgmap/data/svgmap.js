@@ -5,7 +5,7 @@ if (self.port) {
 		//console.log(window.innerWidth);
 		for (var i = 0; i < elements.length; i++) {
 			//self.port.emit("gotElement", elements[i].width.baseVal.value);
-			new SVGMapObject(location.pathname, elements[i], null, null);
+			new SVGMapObject(location.pathname, elements[i], null, null, null);
 		}
 	});
 }
@@ -18,14 +18,14 @@ var STATUS_INITIALIZED = 0;
 var STATUS_LOADING = 1;
 var STATUS_LOADED = 2;
 
-function SVGMapObject(docPath, svgElem, parentElem, rootParams)
+function SVGMapObject(docPath, svgElem, parentElem, parentCrs, rootParams)
 {
 	//console.log("SVGMapObject");
-	this.initialize(docPath, svgElem, parentElem, rootParams);
+	this.initialize(docPath, svgElem, parentElem, parentCrs, rootParams);
 }
 
 SVGMapObject.prototype = {
-	initialize : function(docPath, svgElem, parentElem, rootParams) {
+	initialize : function(docPath, svgElem, parentElem, parentCrs, rootParams) {
 		//console.log("initialize");
 		//this.rootDocument = element;
 		//this.mapx = 138;
@@ -42,6 +42,7 @@ SVGMapObject.prototype = {
 		this.docPath = docPath;
 		this.svgElem = svgElem;
 		this.parentElem =  parentElem;
+		this.parentCrs = parentCrs;
 		this.rootParams = rootParams;
 		this.svgObjects = new Object(); // 連想配列(key:path, value:SVGMapParser)
 		this.status = STATUS_INITIALIZED;
@@ -56,6 +57,7 @@ SVGMapObject.prototype = {
 				// CRSがない場合はSVGMapでないので以降の処理を全てキャンセル
 				return;
 			}
+			this.parentCrs = this.crs;
 			this.rootParams = new Object();
 			this.rootParams.rootCrs = this.crs;
 			this.rootParams.mapCanvasSize = this.getCanvasSize(this.svgElem);
@@ -136,12 +138,12 @@ SVGMapObject.prototype = {
 	},
 	
 	parseSVG : function(svgElem , eraseAll) {
+		//console.log(this.docPath);
 		var s2c = getRootSvg2Canvas(this.rootParams.rootViewPort, this.rootParams.mapCanvasSize);
 		var zoom = getZoom(s2c);
 		//console.log("S2C:", s2c);
 		// svgElemは(初回は)svg文書のルート要素 , docPathはこのSVG文書のパス eraseAll==trueで対応要素を無条件消去	
 		
-		//console.log(this.docPath);
 		var svgNodes = svgElem.childNodes;
 		//var crs = this.crs;
 		var docDir = this.docPath.substring(0, this.docPath.lastIndexOf("/")+1);
@@ -184,12 +186,19 @@ SVGMapObject.prototype = {
 					if (svgObj == null) { 
 						// ロードされていないとき
 						console.log("Loading:" + path);
-						// g要素を生成し、animation要素の前に挿入
-						var g = this.svgDoc.createElementNS(NS_SVG, "g");
+						// g要素を生成
+						var g = document.createElementNS(NS_SVG, "g");
 						g.setAttribute("id", path);
-						svgNode.parentNode.insertBefore(g, svgNode);
+						if (this.parentElem == null) {
+							// ルート要素の場合はanimation要素の前に挿入
+							svgNode.parentNode.insertBefore(g, svgNode);
+						} else {
+							console.log("this.parentElem");
+							// インポートSVGの場合は親の子要素として追加
+							this.parentElem.appendChild(g);
+						}
 						// オブジェクト作成と同時にロード
-						this.svgObjects[path] = new SVGMapObject(path, null, g, this.rootParams);
+						this.svgObjects[path] = new SVGMapObject(path, null, g, this.crs, this.rootParams);
 					}
 				} else {
 					// ロードすべきでないイメージの場合
@@ -246,15 +255,34 @@ function handleResult(svgObj, httpRes) {
 			if (httpRes.responseXML.documentElement) {
 				svgObj.svgDoc = httpRes.responseXML;
 			} else {
-				svgObj.svgDoc = new DOMParser().parseFromString(httpRes.responseText, "image/svg+xml");
+				svgObj.svgDoc = new DOMParser().parseFromString(httpRes.responseText, "text/xml");
 			}
 			svgObj.svgElem = svgObj.svgDoc.documentElement;
 			svgObj.crs = getCrs(svgObj.svgElem);
 			if (svgObj.crs == null) {
-				// ルートと同じにしておく
-				svgObj.crs = svgObj.rootParams.rootCrs;
+				// 地理座標変換パラメータがない場合=>親と同じにしておく
+				svgObj.crs = svgObj.parentCrs;
+			} else {
+				if (svgObj.crs.a != svgObj.parentCrs.a
+					|| svgObj.crs.b != svgObj.parentCrs.b
+					|| svgObj.crs.c != svgObj.parentCrs.c
+					|| svgObj.crs.d != svgObj.parentCrs.d
+					|| svgObj.crs.e != svgObj.parentCrs.e
+					|| svgObj.crs.f != svgObj.parentCrs.f) {
+					// 地理座標変換パラメータが親と異なる場合
+					var matrix = getMultiplyMatrix(svgObj.parentCrs, getInverseMatrix(svgObj.crs));
+					// g要素のtransform属性を設定
+					svgObj.parentElem.setAttribute("transform",
+						"matrix("
+						+ matrix.a + ","
+						+ matrix.b + ","
+						+ matrix.c + ","
+						+ matrix.d + ","
+						+ matrix.e + ","
+						+ matrix.f + ")");
+				}
 			}
-			// 子要素を全て追加
+			// 子要素のクローンを全て追加
 			var svgNodes = svgObj.svgElem.childNodes;
 			for (var i = 0; i < svgNodes.length; i++) {
 				var svgNode = svgNodes[i];
@@ -266,9 +294,7 @@ function handleResult(svgObj, httpRes) {
 					continue;
 				}
 				
-				// TODO:座標操作が必要
-				console.log("childSvgNode:", svgNode);
-				svgObj.parentElem.appendChild(svgNode);
+				svgObj.parentElem.appendChild(svgNode.cloneNode());
 			}
 			svgObj.state = STATUS_LOADED;
 			//console.log("docPath:" + svgObj.docPath);
@@ -473,6 +499,24 @@ function getInverseMatrix( matrix ){
 		}
 	} else {
 		return ( null );
+	}
+}
+
+// 行列の積を取得
+function getMultiplyMatrix(matA, matB) {
+	var a = matA.a * matB.a + matA.c * matB.b;
+	var b = matA.b * matB.a + matA.d * matB.b;
+	var c = matA.a * matB.c + matA.c * matB.d;
+	var d = matA.b * matB.c + matA.d * matB.d;
+	var e = matA.a * matB.e + matA.c * matB.f + matA.e;
+	var f = matA.b * matB.e + matA.d * matB.f + matA.f;
+	return {
+		a : a,
+		b : b,
+		c : c,
+		d : d,
+		e : e,
+		f : f
 	}
 }
 
