@@ -30,7 +30,7 @@ SVGMapObject.prototype = {
 		//this.rootDocument = element;
 		//this.mapx = 138;
 		//this.mapy = 37;
-		//this.zoomRatio = 1.41;
+		this.zoomRatio = 1.41;
 		//this.mapCanvas = null;
 		//this.mapCanvasSize = null;
 		//this.rootViewPort = null;
@@ -44,8 +44,11 @@ SVGMapObject.prototype = {
 		this.parentElem =  parentElem;
 		this.parentCrs = parentCrs;
 		this.rootParams = rootParams;
-		this.svgObjects = new Object(); // 連想配列(key:path, value:SVGMapParser)
+		this.svgObjects = new Object(); // 連想配列(key:path, value:SVGMapObject)
 		this.status = STATUS_INITIALIZED;
+		this.panning = false;
+		this.mouseX = 0;
+		this.mouseY = 0;
 
 		if (this.parentElem == null) {
 			// ルート要素の場合
@@ -60,24 +63,30 @@ SVGMapObject.prototype = {
 			this.parentCrs = this.crs;
 			this.rootParams = new Object();
 			this.rootParams.rootCrs = this.crs;
+			this.setPointerEvents();
 			this.rootParams.mapCanvasSize = this.getCanvasSize(this.svgElem);
 			//console.log("mapCanvasSize:", this.rootParams["mapCanvasSize"]);
-			this.createZoomButton(this.svgElem);
+			//this.createZoomButton(this.svgElem);
 			var viewBox = getViewBox(this.svgElem);
-			this.rootParams.rootViewPort = getRootViewPortFromRootSVG( viewBox , this.rootParams.mapCanvasSize );
+			this.rootParams.rootViewPort = getRootViewPortFromRootSVG(viewBox, this.rootParams.mapCanvasSize);
 			//console.log("rootViewPort:", this.rootParams.rootViewPort);
-			//this.loadElement(element, docId, docPath);
+			this.updateRootViewBox();
 			this.parseSVG(this.svgElem, false);
 		} else {
 			// インポートSVGの場合
 			loadSVG(this);
 		}
 	},
-
-	loadElement : function(element, docId, docPath) {
-		console.log("loadElement");
+	
+	setPointerEvents : function() {
+		var that = this;
+		this.svgElem.addEventListener("mousedown", function(evt) { return that.startPan(evt) }, false);
+		this.svgElem.addEventListener("mouseup", function(evt) { that.endPan(evt) }, false);
+		this.svgElem.addEventListener("mousemove", function(evt) { return that.processPan(evt) }, false);
+		this.svgElem.addEventListener("resize", function(evt) { that.refreshWindowSize() }, false);
+		this.svgElem.addEventListener("DOMMouseScroll", function(evt) { that.wheelZoom(evt) }, false);
 	},
-
+	
 	getCanvasSize : function(element) {
 		//console.log("canvasSize");
 		var w = element.width.baseVal.value;
@@ -93,32 +102,106 @@ SVGMapObject.prototype = {
 			height: h
 		}
 	},
-
-    createZoomButton : function(element) {
-	var buttonGroup = document.createElementNS(NS_SVG, "g");
-	var upButton = document.createElementNS(NS_SVG, "path");
-	upButton.setAttribute("d", "M 0 4 L 4 0 L 8 4 L 6 4 L 6 8 L 2 8 L 2 4 z");
-	upButton.setAttribute("stroke", "black");
-	upButton.setAttribute("fill", "white");
-	upButton.setAttribute("id", "zoomup");
-	buttonGroup.appendChild(upButton);
-	upButton.addEventListener("click", this.zoomup, false);
-	var downButton = document.createElementNS(NS_SVG, "path");
-	downButton.setAttribute("d", "M 0 14 L 4 18 L 8 14 L 6 14 L 6 10 L 2 10 L 2 14 z");
-	downButton.setAttribute("stroke", "black");
-	downButton.setAttribute("fill", "white");
-	downButton.setAttribute("id", "zoomdown");
-	buttonGroup.appendChild(downButton);
-	downButton.addEventListener("click", this.zoomdown, false);
-	element.appendChild(buttonGroup);
-    },
-
-    zoomup : function(event) {
-	console.log("zoomup");
-    },
-    zoomdown : function(event) {
-	console.log("zoomdown");
-    },
+	
+	// <svg>要素のviewBox属性を更新
+	updateRootViewBox : function() {
+		var viewBox = this.rootParams.rootViewPort.x.toString() + " "
+								+ this.rootParams.rootViewPort.y.toString() + " "
+								+ this.rootParams.rootViewPort.width.toString() + " "
+								+ this.rootParams.rootViewPort.height.toString();
+		this.svgElem.setAttribute("viewBox", viewBox);
+	},
+	
+	/*
+	createZoomButton : function(element) {
+		var buttonGroup = document.createElementNS(NS_SVG, "g");
+		var upButton = document.createElementNS(NS_SVG, "path");
+		upButton.setAttribute("d", "M 0 4 L 4 0 L 8 4 L 6 4 L 6 8 L 2 8 L 2 4 z");
+		upButton.setAttribute("stroke", "black");
+		upButton.setAttribute("fill", "white");
+		upButton.setAttribute("id", "zoomup");
+		buttonGroup.appendChild(upButton);
+		upButton.addEventListener("click", this.zoomup, false);
+		var downButton = document.createElementNS(NS_SVG, "path");
+		downButton.setAttribute("d", "M 0 14 L 4 18 L 8 14 L 6 14 L 6 10 L 2 10 L 2 14 z");
+		downButton.setAttribute("stroke", "black");
+		downButton.setAttribute("fill", "white");
+		downButton.setAttribute("id", "zoomdown");
+		buttonGroup.appendChild(downButton);
+		downButton.addEventListener("click", this.zoomdown, false);
+		element.appendChild(buttonGroup);
+	},
+    */
+    
+	wheelZoom : function(evt) {
+		//console.log("wheelZoom:" + evt.detail);
+		if (evt.detail > 0) {
+			this.zoomup();
+		} else if (evt.detail < 0) {
+			this.zoomdown();
+		}
+	},
+    
+	startPan : function(evt) {
+		//console.log("startPan");
+		this.panning = true;
+		this.mouseX = evt.clientX;
+		this.mouseY = evt.clientY;
+		return false; // これは画像上のドラッグ動作処理を抑制するらしい
+	},
+	
+	endPan : function(evt) {
+		this.panning = false;
+		this.parseSVG(this.svgElem, false);
+	},
+	
+	processPan : function(evt) {
+		if (this.panning) {
+			var difX = evt.clientX - this.mouseX;
+			var difY = evt.clientY - this.mouseY;
+			this.shiftMap(difX , difY);
+			this.mouseX += difX;
+			this.mouseY += difY;
+			return false;
+		}
+		return true;
+	},
+	
+	shiftMap : function(x , y) {
+		var s2c = getRootSvg2Canvas(this.rootParams.rootViewPort,
+														this.rootParams.mapCanvasSize);
+		this.rootParams.rootViewPort.x -= x / s2c.a;
+		this.rootParams.rootViewPort.y -= y / s2c.d;
+		this.updateRootViewBox();
+	},
+	
+	zoom : function(pow) {
+		var svgRootCenterX = this.rootParams.rootViewPort.x 
+											+ 0.5 * this.rootParams.rootViewPort.width;
+		var svgRootCenterY = this.rootParams.rootViewPort.y
+											+ 0.5 * this.rootParams.rootViewPort.height;
+		
+		this.rootParams.rootViewPort.width = this.rootParams.rootViewPort.width * pow;
+		this.rootParams.rootViewPort.height = this.rootParams.rootViewPort.height * pow;
+		
+		this.rootParams.rootViewPort.x = svgRootCenterX
+																- this.rootParams.rootViewPort.width / 2;
+		this.rootParams.rootViewPort.y = svgRootCenterY
+																- this.rootParams.rootViewPort.height / 2;
+		
+		this.updateRootViewBox();
+		this.parseSVG(this.svgElem, false);
+	},
+	
+	zoomup : function(event) {
+		//console.log("zoomup");
+		this.zoom(1/this.zoomRatio);
+	},
+	
+	zoomdown : function(event) {
+		//console.log("zoomdown");
+		this.zoom(this.zoomRatio);
+	},
 
 	refreshWindowSize : function() {
 		console.log("refreshViewPortSize()");//
@@ -181,11 +264,9 @@ SVGMapObject.prototype = {
 				if (!eraseAll && inArea && inZoom) {
 					// ロードすべきイメージの場合
 					
-					//var animBox = getTransformedBox(animationRect , s2c);
-					
 					if (svgObj == null) { 
 						// ロードされていないとき
-						console.log("Loading:" + path);
+						//console.log("Loading:" + path);
 						// g要素を生成
 						var g = document.createElementNS(NS_SVG, "g");
 						g.setAttribute("id", path);
@@ -193,8 +274,9 @@ SVGMapObject.prototype = {
 							// ルート要素の場合はanimation要素の前に挿入
 							svgNode.parentNode.insertBefore(g, svgNode);
 						} else {
-							console.log("this.parentElem");
+							//console.log("this.parentElem");
 							// インポートSVGの場合は親の子要素として追加
+							// TODO:idがanimation xlink:hrefと一致するものの前に挿入すべき
 							this.parentElem.appendChild(g);
 						}
 						// オブジェクト作成と同時にロード
@@ -227,7 +309,7 @@ SVGMapObject.prototype = {
 				}
 				// g要素の場合は、子要素を再帰パースする
 				if (svgNode.hasChildNodes) {
-					this.parseSVG( svgNode , false );
+					this.parseSVG(svgNode, false);
 				}
 			}
 		}
@@ -305,7 +387,7 @@ function handleResult(svgObj, httpRes) {
 		}
 	}
 }
-	
+
 function getRootViewPortFromRootSVG( viewBox , mapCanvasSize_ ){
 	var rVPx , rVPy , rVPwidth , rVPheight;
 	if(viewBox){
@@ -396,39 +478,6 @@ function getViewBox( svgElem ){
 		height : Number(vb[3])
 	}
 }
-
-/*
-function getTransformedBox( inBox , matrix ){
-	// b,c==0のときのみの簡易関数・・
-	if ( matrix.b == 0 && matrix.c == 0){
-		var x , y , w , h;
-		if ( matrix.a > 0 ){
-			x = matrix.a * inBox.x + matrix.e;
-			w = matrix.a * inBox.width;
-		} else {
-			x = matrix.a * (inBox.x + inBox.width) + matrix.e;
-			w = - matrix.a * inBox.width;
-		}
-		
-		if ( matrix.d > 0 ){
-			y = matrix.d * inBox.y + matrix.f;
-			h = matrix.d * inBox.height;
-		} else {
-			y = matrix.d * (inBox.y + inBox.height) + matrix.f;
-			h = - matrix.d * inBox.height;
-		}
-		
-		return {
-			x : x ,
-			y : y ,
-			width : w ,
-			height : h
-		}
-	} else {
-		return ( null );
-	}
-}
-*/
 
 function Geo2SVG( lat , lng , crs ){
 	return {
