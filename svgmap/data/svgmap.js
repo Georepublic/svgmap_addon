@@ -5,7 +5,7 @@ if (self.port) {
 		//console.log(window.innerWidth);
 		for (var i = 0; i < elements.length; i++) {
 			//self.port.emit("gotElement", elements[i].width.baseVal.value);
-			new SVGMapObject(location.pathname, elements[i], null, null, null);
+			new SVGMapObject(location.pathname, elements[i], null, null, null, null);
 		}
 	});
 }
@@ -13,19 +13,34 @@ if (self.port) {
 var NS_SVG = "http://www.w3.org/2000/svg";
 var NS_XLINK = "http://www.w3.org/1999/xlink";
 
-var STATUS_FAILED = -1;
 var STATUS_INITIALIZED = 0;
 var STATUS_LOADING = 1;
 var STATUS_LOADED = 2;
+var STATUS_FAILED = 10;
 
-function SVGMapObject(docPath, svgElem, parentElem, parentCrs, rootParams)
+function SVGMapImage(imgPath, imgElem, imgProps, parentElem)
+{
+	//console.log("SVGMapImage");
+	this.initialize(imgPath, imgElem, imgProps, parentElem);
+}
+
+SVGMapImage.prototype = {
+	initialize : function(imgPath, imgElem, imgProps, parentElem) {
+		this.imgPath = imgPath;
+		this.imgElem = imgElem;
+		this.imgProps = imgProps;
+		this.parentElem = parentElem;
+	},
+};
+
+function SVGMapObject(docPath, svgElem, animProps, parentElem, parentCrs, rootParams)
 {
 	//console.log("SVGMapObject");
-	this.initialize(docPath, svgElem, parentElem, parentCrs, rootParams);
+	this.initialize(docPath, svgElem, animProps, parentElem, parentCrs, rootParams);
 }
 
 SVGMapObject.prototype = {
-	initialize : function(docPath, svgElem, parentElem, parentCrs, rootParams) {
+	initialize : function(docPath, svgElem, animProps, parentElem, parentCrs, rootParams) {
 		//console.log("initialize");
 		//this.rootDocument = element;
 		//this.mapx = 138;
@@ -41,10 +56,12 @@ SVGMapObject.prototype = {
 		this.svgDoc = null;
 		this.docPath = docPath;
 		this.svgElem = svgElem;
+		this.animProps = animProps;
 		this.parentElem =  parentElem;
 		this.parentCrs = parentCrs;
 		this.rootParams = rootParams;
-		this.svgObjects = new Object(); // 連想配列(key:path, value:SVGMapObject)
+		this.svgObjects = new Array(); // animation要素リスト
+		this.svgImages = new Array(); // image要素のリスト
 		this.status = STATUS_INITIALIZED;
 		this.panning = false;
 		this.mouseX = 0;
@@ -53,7 +70,7 @@ SVGMapObject.prototype = {
 		if (this.parentElem == null) {
 			// ルート要素の場合
 			this.svgDoc = document;
-			this.status = STATUS_LOADED
+			this.status = STATUS_LOADED;
 			this.crs = getCrs(this.svgElem);
 			console.log("crs:", this.crs);
 			if (this.crs == null) {
@@ -72,9 +89,9 @@ SVGMapObject.prototype = {
 			//console.log("rootViewPort:", this.rootParams.rootViewPort);
 			this.updateRootViewBox();
 			this.parseSVG(this.svgElem, false);
+			this.dynamicLoad();
 		} else {
-			// インポートSVGの場合
-			loadSVG(this);
+			// インポートSVGの場合は読み込み指示があるまで待機
 		}
 	},
 	
@@ -105,11 +122,11 @@ SVGMapObject.prototype = {
 	
 	// <svg>要素のviewBox属性を更新
 	updateRootViewBox : function() {
-		var viewBox = this.rootParams.rootViewPort.x.toString() + " "
+		var newViewBox = this.rootParams.rootViewPort.x.toString() + " "
 								+ this.rootParams.rootViewPort.y.toString() + " "
 								+ this.rootParams.rootViewPort.width.toString() + " "
 								+ this.rootParams.rootViewPort.height.toString();
-		this.svgElem.setAttribute("viewBox", viewBox);
+		this.svgElem.setAttribute("viewBox", newViewBox);
 	},
 	
 	/*
@@ -153,7 +170,7 @@ SVGMapObject.prototype = {
 	endPan : function(evt) {
 		//console.log("endPan");
 		this.panning = false;
-		this.parseSVG(this.svgElem, false);
+		this.dynamicLoad();
 	},
 	
 	processPan : function(evt) {
@@ -189,7 +206,7 @@ SVGMapObject.prototype = {
 		this.rootParams.rootViewPort.y = svgRootCenterY - this.rootParams.rootViewPort.height / 2;
 		
 		this.updateRootViewBox();
-		this.parseSVG(this.svgElem, false);
+		this.dynamicLoad();
 	},
 	
 	zoomup : function(event) {
@@ -216,16 +233,88 @@ SVGMapObject.prototype = {
 		this.rootParams.rootViewPort.x = pervCenterX - 0.5 * this.rootParams.rootViewPort.width;
 		this.rootParams.rootViewPort.y = pervCenterY - 0.5 * this.rootParams.rootViewPort.height;
 		
-		this.parseSVG(this.svgElem, false);
+		this.dynamicLoad();
 	},
 	
-	parseSVG : function(svgElem , eraseAll) {
-		//console.log(this.docPath);
+	dynamicLoad : function() {
+		//console.log("dynamicLoad");
+		
 		var s2c = getRootSvg2Canvas(this.rootParams.rootViewPort, this.rootParams.mapCanvasSize);
 		var zoom = getZoom(s2c);
 		//console.log("S2C:", s2c);
-		// svgElemは(初回は)svg文書のルート要素 , docPathはこのSVG文書のパス eraseAll==trueで対応要素を無条件消去	
 		
+		// image要素リストの動的ロード
+		//console.log("svgImages.length:", this.svgImages.length);
+		for (var i = 0; i < this.svgImages.length; i++) {
+			var svgImage = this.svgImages[i];
+			var inArea = isIntersect(svgImage.imgProps, this.rootParams.rootViewPort);
+			var inZoom = inZoomRange(svgImage.imgProps, zoom);
+			
+			/*
+			console.log("--  " + svgImage.imgProps.href);
+			//console.log("imgProps:", svgImage.imgProps);
+			console.log("zoom:", zoom);
+			console.log("inArea:" + inArea);
+			console.log("inZoom:" + inZoom);
+			console.log("--");
+			*/
+			
+			if (inArea && inZoom) {
+				// ロードすべきイメージの場合
+				if (!svgImage.parentElem.hasChildNodes()) {
+					// 親にimage要素が追加されていない場合
+					//console.log("appendChild:" + svgImage.imgProps.href);
+					svgImage.parentElem.appendChild(svgImage.imgElem);
+				}
+			} else {
+				// ロードすべきでないイメージの場合
+				if (svgImage.parentElem.hasChildNodes()) {
+					// 親にimage要素が追加済みの場合
+					//console.log("removeChild:" + svgImage.imgProps.href);
+					var imgElem = svgImage.parentElem.childNodes[0];
+					svgImage.parentElem.removeChild(imgElem);
+				}
+			}
+		}
+		
+		// animation要素リストの動的ロード
+		//console.log("svgObjects.length:" + this.svgObjects.length);
+		for (var i = 0; i < this.svgObjects.length; i++) {
+			var svgObj = this.svgObjects[i];
+			//console.log("svgObj:", svgObj);
+			var inArea = isIntersect(this.svgObjects[i].animProps, this.rootParams.rootViewPort);
+			var inZoom = inZoomRange(this.svgObjects[i].animProps, zoom);
+			
+			if (inArea && inZoom) {
+				// ロードすべきインポートSVGの場合
+				
+				if (svgObj.status < STATUS_LOADING) {
+					// ロードされていない場合
+					//console.log("Loading:" + svgObj.docPath);
+					loadSVG(svgObj);
+				} else if (svgObj.status == STATUS_LOADED) {
+					// ロードされている場合
+					//console.log("Loaded:" + svgObj.docPath);
+					svgObj.dynamicLoad();
+				}
+			} else {
+				// ロードすべきでないインポートSVGの場合
+				if (svgObj.status == STATUS_LOADED) {
+					// ロードされている場合
+					// 消す
+					//console.log("Unloading:" + svgObj.docPath);
+					this.unload(svgObj);
+				}
+			}
+		}
+	},
+	
+	// SVG文書のパースで、animation要素、image要素を
+	// SVGMapObject, SVGMapImageとして読み込み、g要素に置換します。
+	// (既存の動的ロード動作については、dynamicLoadメソッドに移行させます)
+	parseSVG : function(svgElem , eraseAll) {
+		//console.log(this.docPath);
+
 		var svgNodes = svgElem.childNodes;
 		//var crs = this.crs;
 		var docDir = this.docPath.substring(0, this.docPath.lastIndexOf("/")+1);
@@ -235,97 +324,80 @@ SVGMapObject.prototype = {
 			if (svgNode.nodeType != 1) {
 				continue;
 			}
-			if (svgNode.nodeName == "animation") {
-				// animation要素の場合
+			if (svgNode.nodeName == "image" || svgNode.nodeName == "animation") {
+				// image||animation要素の場合
 				
-				var ap = getAnimationProps(svgNode); // x,y,w,h,href読み込み
+				var ip = getImageProps(svgNode); // x,y,w,h,href読み込み
 				
-				var animationRect = ap;
+				var imageRect = ip;
 				if (this.parentElem == null) {
-					animationRect = ap;
+					imageRect = ip;
 				} else {
-					animationRect = child2rootSVGrect(ap, this.rootParams.rootCrs, this.crs);
+					imageRect = child2rootSVGrect(ip, this.rootParams.rootCrs, this.crs);
+					ip.x = imageRect.x;
+					ip.y = imageRect.y;
+					ip.width = imageRect.width;
+					ip.height = imageRect.height;
 				}
-				var path = docDir + ap.href;
-				var svgObj = this.svgObjects[path];
-				var inArea = isIntersect(animationRect, this.rootParams.rootViewPort);
-				var inZoom = inZoomRange(ap, zoom);
-
-				/*
-				console.log("--  " + this.docPath);
-				console.log("ap:", ap);
-				console.log("animationRect:", animationRect);
-				console.log("zoom:", zoom);
-				console.log("inArea:" + inArea);
-				console.log("inZoom:" + inZoom);
-				console.log("--");
-				*/
-				if (!eraseAll && inArea && inZoom) {
-					// ロードすべきイメージの場合
-					
-					if (svgObj == null) { 
-						// ロードされていないとき
-						//console.log("Loading:" + path);
-						// g要素を生成
-						var g = document.createElementNS(NS_SVG, "g");
-						g.setAttribute("id", path);
-						if (this.parentElem == null) {
-							// ルート要素の場合はanimation要素の前に挿入
-							//svgNode.parentNode.insertBefore(g, svgNode);
-							svgNode.parentNode.insertBefore(g, svgNode);
-						} else {
-							//console.log("this.parentElem");
-							// インポートSVGの場合は親の子要素内で
-							// xlink:href属性が一致するanimation要素の前に挿入
-							var animElem = getAnimationElemByHref(this.parentElem, ap.href);
-							if (animElem) {
-								animElem.parentNode.insertBefore(g, animElem);
-							} else {
-								console.log("Error:" + path);
-							}
-						}
-						// オブジェクト作成と同時にロード
-						this.svgObjects[path] = new SVGMapObject(path, null, g, this.crs, this.rootParams);
-					}
+				
+				var path;
+				if (ip.href.indexOf("http://") == 0) {
+					path = ip.href;
 				} else {
-					// ロードすべきでないイメージの場合
-					if (svgObj) {
-						// ロードされているとき
-						// 消す
-						//console.log("Unloading:" + path);
-						this.clearObject(svgObj);
-						this.svgObjects[path] = null;
-					}
+					path = docDir + ip.href;
+				}
+				
+				// g要素を生成
+				var g = document.createElementNS(NS_SVG, "g");
+				g.setAttribute("id", path);
+				// image/animation要素をg要素に置換
+				svgNode.parentNode.replaceChild(g, svgNode);
+				
+				// オブジェクトを生成し、連想配列として保持
+				if (svgNode.nodeName == "animation") {
+					this.svgObjects.push(new SVGMapObject(path, null, ip, g, this.crs, this.rootParams));
+				} else {
+					this.svgImages.push(new SVGMapImage(path, svgNode, ip, g));
 				}
 			} else if (svgNode.nodeName =="g") {
-				for (var svgObj in this.svgObjects) {
-					if (svgNode == svgObj.parentElem) {
-						// 自分で追加したものの場合はスキップ
-						continue;
-					}
-				}
 				// g要素の場合は、子要素を再帰パースする
-				if (svgNode.hasChildNodes) {
+				if (svgNode.hasChildNodes()) {
 					this.parseSVG(svgNode, false);
 				}
 			}
 		}
 	},
 	
-	// 配下のオブジェクトを再帰的にクリア
-	clearObject : function(svgObj) {
-		// 孫->子の順にクリア
-		for (var i = svgObj.svgObjects.length; i >= 0; i--) {
-			this.clearObject(svgObj.svgObjects[i]);
-			svgObj.svgObjects[i] = null;
+	// 指定オブジェクト配下を再帰的にクリア
+	unload : function(svgObj) {
+		//console.log("unload");
+		// image要素リストをクリア
+		while (svgObj.svgImages.length > 0) {
+			var svgImage = svgObj.svgImages.pop();
+			if (svgImage.parentElem.hasChildNodes()) {
+				svgImage.parentElem.removeChild(svgImage.imgElem);
+			}
+			svgImage = null;
 		}
-		// ルート要素のDOMツリーから親のg要素を削除
-		var parentNode = svgObj.parentElem.parentNode;
-		parentNode.removeChild(svgObj.parentElem);
+		// animation要素リストを子孫から順にクリア
+		while (svgObj.svgObjects.length > 0) {
+			var svgChildObj = svgObj.svgObjects.pop();
+			this.unload(svgChildObj);
+			svgChildObj = null;
+		}
+		// ルート要素のDOMツリーから削除
+		if (svgObj.parentElem.hasChildNodes()) {
+			var svgNodes = svgObj.parentElem.childNodes;
+			for (var i = svgNodes.length - 1; i >= 0; i--) {
+				svgObj.parentElem.removeChild(svgNodes[i]);
+			}
+		}
 		// メンバオブジェクトをクリア
 		svgObj.svgDoc = null;
 		svgObj.svgElem = null;
-		svgObj.svgObjects = null;
+		svgObj.svgObjects = new Array();
+		svgObj.svgImages = new Array();
+		svgObj.status = STATUS_INITIALIZED;
 	}
 };
 
@@ -377,7 +449,12 @@ function handleResult(svgObj, httpRes) {
 						+ matrix.f + ")");
 				}
 			}
-			// 子要素のクローンを全て追加
+			
+			// 範囲外のimage要素の不要なロードを避けるため、
+			// 先にドキュメント内の要素を置換
+			svgObj.parseSVG(svgObj.svgElem, false);
+			
+			// 子要素のクローンを追加
 			var svgNodes = svgObj.svgElem.childNodes;
 			for (var i = 0; i < svgNodes.length; i++) {
 				var svgNode = svgNodes[i];
@@ -391,12 +468,26 @@ function handleResult(svgObj, httpRes) {
 				
 				svgObj.parentElem.appendChild(svgNode.cloneNode());
 			}
-			svgObj.state = STATUS_LOADED;
+			
+			// クローンにより、親が参照できなくなってしまうので、
+			// idを頼りに差し替え
+			for (var i = 0; i < svgObj.svgImages.length; i++) {
+				var svgImage = svgObj.svgImages[i];
+				svgImage.parentElem = document.getElementById(svgImage.imgPath);
+				//console.log("svgImage.parentElem:" + svgImage.parentElem);
+			}
+			for (var i = 0; i < svgObj.svgObjects.length; i++) {
+				var svgChildObj = svgObj.svgObjects[i];
+				svgChildObj.parentElem = document.getElementById(svgChildObj.docPath);
+				//console.log("svgChildObj.parentElem:" + svgChildObj.parentElem);
+			}
+			
+			svgObj.status = STATUS_LOADED;
+			svgObj.dynamicLoad();
 			//console.log("docPath:" + svgObj.docPath);
 			//console.log("docText:" + httpRes.responseText);
-			svgObj.parseSVG(svgObj.svgElem, false);
 		} else {
-			svgObj.state = STATUS_FAILED;
+			svgObj.status = STATUS_FAILED;
 		}
 	}
 }
@@ -602,24 +693,24 @@ function getZoom( s2c ){
 		return ( ( Math.abs(s2c.a) + Math.abs(s2c.d) ) / 2.0 );
 }
 
-function getAnimationProps(animE) {
-	var x = Number(animE.getAttribute("x"));
-	var y = Number(animE.getAttribute("y"));
-	var width = Number(animE.getAttribute("width"));
-	var height = Number(animE.getAttribute("height"));
-	var href = animE.getAttribute("xlink:href");
+function getImageProps(imgE) {
+	var x = Number(imgE.getAttribute("x"));
+	var y = Number(imgE.getAttribute("y"));
+	var width = Number(imgE.getAttribute("width"));
+	var height = Number(imgE.getAttribute("height"));
+	var href = imgE.getAttribute("xlink:href");
 	// visibleXXXZoom属性は、HTMLDomでは小文字、SVGDomでは大小文字
 	var minZoom = 0;
-	if (animE.hasAttribute("visibleMinZoom")) {
-		minZoom = Number(animE.getAttribute("visibleMinZoom"))/100;
-	} else if (animE.hasAttribute("visibleminzoom")) {
-		minZoom = Number(animE.getAttribute("visibleminzoom"))/100;
+	if (imgE.hasAttribute("visibleMinZoom")) {
+		minZoom = Number(imgE.getAttribute("visibleMinZoom"))/100;
+	} else if (imgE.hasAttribute("visibleminzoom")) {
+		minZoom = Number(imgE.getAttribute("visibleminzoom"))/100;
 	}
 	var maxZoom = 0;
-	if (animE.hasAttribute("visibleMaxZoom")) {
-		maxZoom = Number(animE.getAttribute("visibleMaxZoom"))/100;
-	} else if (animE.hasAttribute("visiblemaxzoom")) {
-		maxZoom = Number(animE.getAttribute("visiblemaxzoom"))/100;
+	if (imgE.hasAttribute("visibleMaxZoom")) {
+		maxZoom = Number(imgE.getAttribute("visibleMaxZoom"))/100;
+	} else if (imgE.hasAttribute("visiblemaxzoom")) {
+		maxZoom = Number(imgE.getAttribute("visiblemaxzoom"))/100;
 	}
 	
 	return {
