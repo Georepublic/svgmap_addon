@@ -151,14 +151,17 @@ SVGMapObject.prototype = {
 	},
 	
 	endPan : function(evt) {
+		//console.log("endPan");
 		this.panning = false;
 		this.parseSVG(this.svgElem, false);
 	},
 	
 	processPan : function(evt) {
 		if (this.panning) {
+			//console.log("processPan");
 			var difX = evt.clientX - this.mouseX;
 			var difY = evt.clientY - this.mouseY;
+			//console.log("dif:" + difX + "," + difY);
 			this.shiftMap(difX , difY);
 			this.mouseX += difX;
 			this.mouseY += difY;
@@ -176,18 +179,14 @@ SVGMapObject.prototype = {
 	},
 	
 	zoom : function(pow) {
-		var svgRootCenterX = this.rootParams.rootViewPort.x 
-											+ 0.5 * this.rootParams.rootViewPort.width;
-		var svgRootCenterY = this.rootParams.rootViewPort.y
-											+ 0.5 * this.rootParams.rootViewPort.height;
+		var svgRootCenterX = this.rootParams.rootViewPort.x + 0.5 * this.rootParams.rootViewPort.width;
+		var svgRootCenterY = this.rootParams.rootViewPort.y + 0.5 * this.rootParams.rootViewPort.height;
 		
 		this.rootParams.rootViewPort.width = this.rootParams.rootViewPort.width * pow;
 		this.rootParams.rootViewPort.height = this.rootParams.rootViewPort.height * pow;
 		
-		this.rootParams.rootViewPort.x = svgRootCenterX
-																- this.rootParams.rootViewPort.width / 2;
-		this.rootParams.rootViewPort.y = svgRootCenterY
-																- this.rootParams.rootViewPort.height / 2;
+		this.rootParams.rootViewPort.x = svgRootCenterX - this.rootParams.rootViewPort.width / 2;
+		this.rootParams.rootViewPort.y = svgRootCenterY - this.rootParams.rootViewPort.height / 2;
 		
 		this.updateRootViewBox();
 		this.parseSVG(this.svgElem, false);
@@ -204,7 +203,7 @@ SVGMapObject.prototype = {
 	},
 
 	refreshWindowSize : function() {
-		console.log("refreshViewPortSize()");//
+		//console.log("refreshViewPortSize()");
 		var prevS2C = getRootSvg2Canvas(this.rootParams.rootViewPort , this.rootParams.mapCanvasSize)
 		var pervCenterX = this.rootParams.rootViewPort.x + 0.5 * this.rootParams.rootViewPort.width;
 		var pervCenterY = this.rootParams.rootViewPort.y + 0.5 * this.rootParams.rootViewPort.height;
@@ -216,8 +215,8 @@ SVGMapObject.prototype = {
 		
 		this.rootParams.rootViewPort.x = pervCenterX - 0.5 * this.rootParams.rootViewPort.width;
 		this.rootParams.rootViewPort.y = pervCenterY - 0.5 * this.rootParams.rootViewPort.height;
-		// TODO:
-		//dynamicLoad( "root", mapCanvas);
+		
+		this.parseSVG(this.svgElem, false);
 	},
 	
 	parseSVG : function(svgElem , eraseAll) {
@@ -272,12 +271,18 @@ SVGMapObject.prototype = {
 						g.setAttribute("id", path);
 						if (this.parentElem == null) {
 							// ルート要素の場合はanimation要素の前に挿入
+							//svgNode.parentNode.insertBefore(g, svgNode);
 							svgNode.parentNode.insertBefore(g, svgNode);
 						} else {
 							//console.log("this.parentElem");
-							// インポートSVGの場合は親の子要素として追加
-							// TODO:idがanimation xlink:hrefと一致するものの前に挿入すべき
-							this.parentElem.appendChild(g);
+							// インポートSVGの場合は親の子要素内で
+							// xlink:href属性が一致するanimation要素の前に挿入
+							var animElem = getAnimationElemByHref(this.parentElem, ap.href);
+							if (animElem) {
+								animElem.parentNode.insertBefore(g, animElem);
+							} else {
+								console.log("Error:" + path);
+							}
 						}
 						// オブジェクト作成と同時にロード
 						this.svgObjects[path] = new SVGMapObject(path, null, g, this.crs, this.rootParams);
@@ -286,18 +291,10 @@ SVGMapObject.prototype = {
 					// ロードすべきでないイメージの場合
 					if (svgObj) {
 						// ロードされているとき
-						// TODO:
-						/*
 						// 消す
-	//					console.log("Remove id:" + imageId);
-	//					console.log(parentElem);
-	//					console.log(imgElem);
-						parentElem.removeChild(imgElem);
-						if ( animationChild ){ // animation要素の場合
-	//						parseSVG(svgImages[imageId].documentElement , svgImages[imageId].docPath ,  true ); // 子文書の画像の明示的な全消去を実施
-							svgImages[imageId] = null; // svgImages(svg子コンテナ文書)の連想配列を消去する　子・孫SVGdocumentの消去ができていない気がする・・・(2012/04/24)
-						}
-						*/
+						//console.log("Unloading:" + path);
+						this.clearObject(svgObj);
+						this.svgObjects[path] = null;
 					}
 				}
 			} else if (svgNode.nodeName =="g") {
@@ -314,6 +311,22 @@ SVGMapObject.prototype = {
 			}
 		}
 	},
+	
+	// 配下のオブジェクトを再帰的にクリア
+	clearObject : function(svgObj) {
+		// 孫->子の順にクリア
+		for (var i = svgObj.svgObjects.length; i >= 0; i--) {
+			this.clearObject(svgObj.svgObjects[i]);
+			svgObj.svgObjects[i] = null;
+		}
+		// ルート要素のDOMツリーから親のg要素を削除
+		var parentNode = svgObj.parentElem.parentNode;
+		parentNode.removeChild(svgObj.parentElem);
+		// メンバオブジェクトをクリア
+		svgObj.svgDoc = null;
+		svgObj.svgElem = null;
+		svgObj.svgObjects = null;
+	}
 };
 
 function loadSVG(svgObj) {
@@ -618,6 +631,29 @@ function getAnimationProps(animE) {
 		minZoom : minZoom,
 		maxZoom : maxZoom
 	}
+}
+
+function getAnimationElemByHref(svgElem, href) {
+	var resElem = null;
+	var svgNodes = svgElem.childNodes;
+	for (var i = 0; i < svgNodes.length; i++) {
+		var svgNode = svgNodes[i];
+		if (svgNode.nodeType != 1) {
+			continue;
+		}
+		if (svgNode.nodeName == "animation") {
+			if (svgNode.getAttribute("xlink:href") == href) {
+				resElem = svgNode;
+				break;
+			}
+		} else if (svgNode.nodeName == "g") {
+			resElem = getAnimationElemByHref(svgNode, href);
+			if (resElem != null) {
+				break;
+			}
+		}
+	}
+	return resElem;
 }
 
 // HTTP通信用、共通関数
