@@ -345,6 +345,8 @@ SVGMapObject.prototype = {
 					path = ip.href;
 				} else {
 					path = docDir + ip.href;
+					// ルートからの相対パスに差し替え
+					svgNode.setAttribute("xlink:href", path);
 				}
 				
 				// g要素を生成
