@@ -152,9 +152,9 @@ SVGMapObject.prototype = {
     
 	wheelZoom : function(evt) {
 		//console.log("wheelZoom:" + evt.detail);
-		if (evt.detail > 0) {
+		if (evt.detail < 0) {
 			this.zoomup();
-		} else if (evt.detail < 0) {
+		} else if (evt.detail > 0) {
 			this.zoomdown();
 		}
 	},
