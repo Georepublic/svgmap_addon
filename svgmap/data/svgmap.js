@@ -48,7 +48,7 @@ SVGMapObject.prototype = {
 		this.zoomRatio = 1.41;
 		//this.mapCanvas = null;
 		//this.mapCanvasSize = null;
-		//this.rootViewPort = null;
+		//this.rootViewBox = null;
 		//this.rootCrs = null;
 		//this.svgImages = new Array();
 		//this.svgImagesPath = new Array();
@@ -85,8 +85,8 @@ SVGMapObject.prototype = {
 			//console.log("mapCanvasSize:", this.rootParams["mapCanvasSize"]);
 			//this.createZoomButton(this.svgElem);
 			var viewBox = getViewBox(this.svgElem);
-			this.rootParams.rootViewPort = getRootViewPortFromRootSVG(viewBox, this.rootParams.mapCanvasSize);
-			//console.log("rootViewPort:", this.rootParams.rootViewPort);
+			this.rootParams.rootViewBox = getRootViewPortFromRootSVG(viewBox, this.rootParams.mapCanvasSize);
+			//console.log("rootViewBox:", this.rootParams.rootViewBox);
 			this.updateRootViewBox();
 			this.parseSVG(this.svgElem, false);
 			this.dynamicLoad();
@@ -122,10 +122,10 @@ SVGMapObject.prototype = {
 	
 	// <svg>要素のviewBox属性を更新
 	updateRootViewBox : function() {
-		var newViewBox = this.rootParams.rootViewPort.x.toString() + " "
-								+ this.rootParams.rootViewPort.y.toString() + " "
-								+ this.rootParams.rootViewPort.width.toString() + " "
-								+ this.rootParams.rootViewPort.height.toString();
+		var newViewBox = this.rootParams.rootViewBox.x.toString() + " "
+								+ this.rootParams.rootViewBox.y.toString() + " "
+								+ this.rootParams.rootViewBox.width.toString() + " "
+								+ this.rootParams.rootViewBox.height.toString();
 		this.svgElem.setAttribute("viewBox", newViewBox);
 	},
 	
@@ -188,22 +188,22 @@ SVGMapObject.prototype = {
 	},
 	
 	shiftMap : function(x , y) {
-		var s2c = getRootSvg2Canvas(this.rootParams.rootViewPort,
+		var s2c = getRootSvg2Canvas(this.rootParams.rootViewBox,
 														this.rootParams.mapCanvasSize);
-		this.rootParams.rootViewPort.x -= x / s2c.a;
-		this.rootParams.rootViewPort.y -= y / s2c.d;
+		this.rootParams.rootViewBox.x -= x / s2c.a;
+		this.rootParams.rootViewBox.y -= y / s2c.d;
 		this.updateRootViewBox();
 	},
 	
 	zoom : function(pow) {
-		var svgRootCenterX = this.rootParams.rootViewPort.x + 0.5 * this.rootParams.rootViewPort.width;
-		var svgRootCenterY = this.rootParams.rootViewPort.y + 0.5 * this.rootParams.rootViewPort.height;
+		var svgRootCenterX = this.rootParams.rootViewBox.x + 0.5 * this.rootParams.rootViewBox.width;
+		var svgRootCenterY = this.rootParams.rootViewBox.y + 0.5 * this.rootParams.rootViewBox.height;
 		
-		this.rootParams.rootViewPort.width = this.rootParams.rootViewPort.width * pow;
-		this.rootParams.rootViewPort.height = this.rootParams.rootViewPort.height * pow;
+		this.rootParams.rootViewBox.width = this.rootParams.rootViewBox.width * pow;
+		this.rootParams.rootViewBox.height = this.rootParams.rootViewBox.height * pow;
 		
-		this.rootParams.rootViewPort.x = svgRootCenterX - this.rootParams.rootViewPort.width / 2;
-		this.rootParams.rootViewPort.y = svgRootCenterY - this.rootParams.rootViewPort.height / 2;
+		this.rootParams.rootViewBox.x = svgRootCenterX - this.rootParams.rootViewBox.width / 2;
+		this.rootParams.rootViewBox.y = svgRootCenterY - this.rootParams.rootViewBox.height / 2;
 		
 		this.updateRootViewBox();
 		this.dynamicLoad();
@@ -221,17 +221,17 @@ SVGMapObject.prototype = {
 
 	refreshWindowSize : function() {
 		//console.log("refreshViewPortSize()");
-		var prevS2C = getRootSvg2Canvas(this.rootParams.rootViewPort , this.rootParams.mapCanvasSize)
-		var pervCenterX = this.rootParams.rootViewPort.x + 0.5 * this.rootParams.rootViewPort.width;
-		var pervCenterY = this.rootParams.rootViewPort.y + 0.5 * this.rootParams.rootViewPort.height;
+		var prevS2C = getRootSvg2Canvas(this.rootParams.rootViewBox , this.rootParams.mapCanvasSize)
+		var pervCenterX = this.rootParams.rootViewBox.x + 0.5 * this.rootParams.rootViewBox.width;
+		var pervCenterY = this.rootParams.rootViewBox.y + 0.5 * this.rootParams.rootViewBox.height;
 		
 		this.rootParams.mapCanvasSize = this.getCanvasSize(this.element);
 		
-		this.rootParams.rootViewPort.width  = this.rootParams.mapCanvasSize.width  / prevS2C.a;
-		this.rootParams.rootViewPort.height = this.rootParams.mapCanvasSize.height / prevS2C.d;
+		this.rootParams.rootViewBox.width  = this.rootParams.mapCanvasSize.width  / prevS2C.a;
+		this.rootParams.rootViewBox.height = this.rootParams.mapCanvasSize.height / prevS2C.d;
 		
-		this.rootParams.rootViewPort.x = pervCenterX - 0.5 * this.rootParams.rootViewPort.width;
-		this.rootParams.rootViewPort.y = pervCenterY - 0.5 * this.rootParams.rootViewPort.height;
+		this.rootParams.rootViewBox.x = pervCenterX - 0.5 * this.rootParams.rootViewBox.width;
+		this.rootParams.rootViewBox.y = pervCenterY - 0.5 * this.rootParams.rootViewBox.height;
 		
 		this.dynamicLoad();
 	},
@@ -239,7 +239,7 @@ SVGMapObject.prototype = {
 	dynamicLoad : function() {
 		//console.log("dynamicLoad");
 		
-		var s2c = getRootSvg2Canvas(this.rootParams.rootViewPort, this.rootParams.mapCanvasSize);
+		var s2c = getRootSvg2Canvas(this.rootParams.rootViewBox, this.rootParams.mapCanvasSize);
 		var zoom = getZoom(s2c);
 		//console.log("S2C:", s2c);
 		
@@ -247,7 +247,7 @@ SVGMapObject.prototype = {
 		//console.log("svgImages.length:", this.svgImages.length);
 		for (var i = 0; i < this.svgImages.length; i++) {
 			var svgImage = this.svgImages[i];
-			var inArea = isIntersect(svgImage.imgProps, this.rootParams.rootViewPort);
+			var inArea = isIntersect(svgImage.imgProps, this.rootParams.rootViewBox);
 			var inZoom = inZoomRange(svgImage.imgProps, zoom);
 			
 			/*
@@ -282,7 +282,7 @@ SVGMapObject.prototype = {
 		for (var i = 0; i < this.svgObjects.length; i++) {
 			var svgObj = this.svgObjects[i];
 			//console.log("svgObj:", svgObj);
-			var inArea = isIntersect(this.svgObjects[i].animProps, this.rootParams.rootViewPort);
+			var inArea = isIntersect(this.svgObjects[i].animProps, this.rootParams.rootViewBox);
 			var inZoom = inZoomRange(this.svgObjects[i].animProps, zoom);
 			
 			if (inArea && inZoom) {
@@ -495,7 +495,7 @@ function handleResult(svgObj, httpRes) {
 }
 
 
-function getRootViewPortFromRootSVG( viewBox , mapCanvasSize_ ){
+function getRootViewBoxFromRootSVG( viewBox , mapCanvasSize_ ){
 	var rVPx , rVPy , rVPwidth , rVPheight;
 	if(viewBox){
 		if ( mapCanvasSize_.height / mapCanvasSize_.width > viewBox.height / viewBox.width ){
@@ -526,14 +526,14 @@ function getRootViewPortFromRootSVG( viewBox , mapCanvasSize_ ){
 	}
 }
 
-function getRootSvg2Canvas( rootViewPort , mapCanvasSize_ ){
+function getRootSvg2Canvas( rootViewBox , mapCanvasSize_ ){
 	var s2cA , s2cD , s2cE , s2cF;
 	
-	s2cA = mapCanvasSize_.width / rootViewPort.width;
-	s2cD = mapCanvasSize_.height / rootViewPort.height;
+	s2cA = mapCanvasSize_.width / rootViewBox.width;
+	s2cD = mapCanvasSize_.height / rootViewBox.height;
 	
-	s2cE = - s2cA * rootViewPort.x;
-	s2cF = - s2cD * rootViewPort.y;
+	s2cE = - s2cA * rootViewBox.x;
+	s2cF = - s2cD * rootViewBox.y;
 	
 	return{
 		a : s2cA,
