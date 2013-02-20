@@ -148,7 +148,7 @@ SVGMapObject.prototype = {
 		downButton.addEventListener("click", this.zoomdown, false);
 		element.appendChild(buttonGroup);
 	},
-    */
+	*/
     
 	wheelZoom : function(evt) {
 		//console.log("wheelZoom:" + evt.detail);
@@ -494,6 +494,7 @@ function handleResult(svgObj, httpRes) {
 	}
 }
 
+
 function getRootViewPortFromRootSVG( viewBox , mapCanvasSize_ ){
 	var rVPx , rVPy , rVPwidth , rVPheight;
 	if(viewBox){
@@ -518,9 +519,9 @@ function getRootViewPortFromRootSVG( viewBox , mapCanvasSize_ ){
 	}
 	
 	return {
-		x : rVPx,
-		y : rVPy,
-		width : rVPwidth,
+		x : rVPx ,
+		y : rVPy ,
+		width : rVPwidth ,
 		height : rVPheight
 	}
 }
@@ -544,7 +545,7 @@ function getRootSvg2Canvas( rootViewPort , mapCanvasSize_ ){
 	}
 }
 
-function getCrs(svgElem) {
+function getCrs( svgElem ){
 	var crs;
 	for (var i = 0; i < svgElem.childNodes.length; i++) {
 		var node = svgElem.childNodes[i];
@@ -556,11 +557,11 @@ function getCrs(svgElem) {
 	}
 	if (crs) {
 		return {
-			a : Number(crs[0]),
-			b : Number(crs[1]),
-			c : Number(crs[2]),
-			d : Number(crs[3]),
-			e : Number(crs[4]),
+			a : Number(crs[0]) ,
+			b : Number(crs[1]) ,
+			c : Number(crs[2]) ,
+			d : Number(crs[3]) ,
+			e : Number(crs[4]) ,
 			f : Number(crs[5])
 		};
 	} else {
@@ -576,7 +577,7 @@ function getViewBox( svgElem ){
 			vb = svgElem.getAttribute("viewBox").split(",");
 		}
 	}
-	//console.log("viewBox:" , vb[0]+ "," +vb[1]+ "," +vb[2]+ "," +vb[3]);
+//	console.log("viewBox:" , vb[0]+ "," +vb[1]+ "," +vb[2]+ "," +vb[3]);
 	return {
 		x : Number(vb[0]),
 		y : Number(vb[1]),
@@ -641,6 +642,7 @@ function child2rootSVGrect( rect ,  rootCrs , childCrs ){
 	}
 }
 
+
 function getInverseMatrix( matrix ){
 	var det = matrix.a * matrix.d - matrix.b * matrix.c;
 	if ( det != 0 ){
@@ -679,7 +681,7 @@ function inZoomRange( ip , zoom ){
 	if ( !ip.minZoom && !ip.maxZoom ){
 		return ( true );
 	} else {
-		//console.log("EVAL ZOOM : zoom:" + zoom + " min:" + ip.minZoom + " max:" + ip.maxZoom);
+//		console.log("EVAL ZOOM : zoom:" + zoom + " min:" + ip.minZoom + " max:" + ip.maxZoom);
 		if ( ip.minZoom && zoom < ip.minZoom ){
 			return(false);
 		}
@@ -695,7 +697,7 @@ function getZoom( s2c ){
 		return ( ( Math.abs(s2c.a) + Math.abs(s2c.d) ) / 2.0 );
 }
 
-function getImageProps(imgE) {
+function getImageProps( imgE ){
 	var x = Number(imgE.getAttribute("x"));
 	var y = Number(imgE.getAttribute("y"));
 	var width = Number(imgE.getAttribute("width"));
@@ -716,12 +718,12 @@ function getImageProps(imgE) {
 	}
 	
 	return {
-		x : x,
-		y : y,
-		width : width,
-		height : height,
-		href : href,
-		minZoom : minZoom,
+		x : x ,
+		y : y ,
+		width : width ,
+		height : height ,
+		href : href ,
+		minZoom : minZoom ,
 		maxZoom : maxZoom
 	}
 }
@@ -751,19 +753,19 @@ function getAnimationElemByHref(svgElem, href) {
 
 // HTTP通信用、共通関数
 function createXMLHttpRequest(cbFunc){
-	//console.log("createXMLHttpRequest:" + cbFunc);
+//	console.log("createXMLHttpRequest:" + cbFunc);
 	var XMLhttpObject = null;
 	try{
 		XMLhttpObject = new XMLHttpRequest();
-		//console.log("use standard ajax");//
+//		console.log("use standard ajax");
 	}catch(e){
 		try{
 			XMLhttpObject = new ActiveXObject("Msxml2.XMLHTTP");
-			//console.log("use Msxml2 ajax");
+//			console.log("use Msxml2 ajax");
 		}catch(e){
 			try{
 				XMLhttpObject = new ActiveXObject("Microsoft.XMLHTTP");
-				//console.log("use Microsoft ajax");
+//				console.log("use Microsoft ajax");
 			}catch(e){
 				return null;
 			}
@@ -787,7 +789,7 @@ function getAjaxFilter() {
 }
 
 function isIntersect( sec1 , sec2 ){
-	//console.log( sec1 , sec2 );
+//	console.log( sec1 , sec2 );
 	var ans = false;
 	if ( sec1.x > sec2.x + sec2.width || sec2.x > sec1.x + sec1.width 
 	 || sec1.y > sec2.y + sec2.height || sec2.y > sec1.y + sec1.height ){
