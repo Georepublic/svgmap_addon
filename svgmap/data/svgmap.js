@@ -85,7 +85,7 @@ SVGMapObject.prototype = {
 			//console.log("mapCanvasSize:", this.rootParams["mapCanvasSize"]);
 			//this.createZoomButton(this.svgElem);
 			var viewBox = getViewBox(this.svgElem);
-			this.rootParams.rootViewBox = getRootViewPortFromRootSVG(viewBox, this.rootParams.mapCanvasSize);
+			this.rootParams.rootViewBox = getRootViewBoxFromRootSVG(viewBox, this.rootParams.mapCanvasSize);
 			//console.log("rootViewBox:", this.rootParams.rootViewBox);
 			this.updateRootViewBox();
 			this.parseSVG(this.svgElem, false);
