@@ -16,7 +16,7 @@ const COLOR = "rgb(255,255,255)";
 
 pageMod.PageMod({
 		include: ["*", "file://*"],
-		contentScriptWhen: "end",
+		contentScriptWhen: "ready",
 		contentScriptFile: [
 		self.data.url("svgmap.js")
 	],
