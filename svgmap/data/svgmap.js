@@ -122,9 +122,9 @@ SVGMapObject.prototype = {
 		this.svgElem.addEventListener("contextmenu", function(evt) { evt.preventDefault(); }, false);
 		var that = this;
 		if (isSP) {
-			this.svgElem.addEventListener("touchstart", function(evt) { return that.startPan(evt) }, false);
-			this.svgElem.addEventListener("touchend", function(evt) { that.endPan(evt) }, false);
-			this.svgElem.addEventListener("touchmove", function(evt) { return that.showPanning(evt) }, false);
+			this.svgElem.addEventListener("touchstart", function(evt) { that.startPan(evt); evt.preventDefault(); }, false);
+			this.svgElem.addEventListener("touchend", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
+			this.svgElem.addEventListener("touchmove", function(evt) { that.showPanning(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("resize", function(evt) { that.refreshWindowSize() }, false);
 		} else {
 			this.svgElem.addEventListener("mousedown", function(evt) { return that.startPan(evt) }, false);
