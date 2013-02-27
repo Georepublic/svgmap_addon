@@ -11,9 +11,8 @@ if (self.port) {
 	});
 	self.port.on("gotCapturedDataURL", function(dataURL) {
 		for (var i = 0; i < svgMapObjects.length; i++) {
-		//console.log("gotCapturedDataURL - " + dataURL);
+			//console.log("gotCapturedDataURL - " + dataURL);
 			var capImage = document.createElementNS(NS_SVG, "image");
-			capImage.setAttribute("id", ID_CAPIMAGE);
 			//capImage.setAttributeNS(NS_XLINK, "href", dataURL);
 			capImage.href.baseVal = dataURL;
 			svgMapObjects[i].imageCaptured(capImage);
@@ -31,6 +30,8 @@ var STATUS_FAILED = 10;
 
 var ID_MAPROOT = "maproot";
 var ID_CAPIMAGE = "capimage";
+
+var isSP = checkSmartphone();
 
 function SVGMapImage(imgPath, imgElem, imgProps, parentElem)
 {
@@ -80,6 +81,12 @@ SVGMapObject.prototype = {
 		this.panning = false;
 		this.mouseX = 0;
 		this.mouseY = 0;
+		this.mapRoot = null;
+		this.capImage = null;
+		this.initialTouchDistance = 0.0;
+		this.difX = 0.0;
+		this.difY = 0.0;
+		this.zoomingTransitionFactor = -1;
 
 		if (this.parentElem == null) {
 			// ルート要素の場合
@@ -102,8 +109,8 @@ SVGMapObject.prototype = {
 			this.rootParams.rootViewBox = getRootViewBoxFromRootSVG(viewBox, this.rootParams.mapCanvasSize);
 			//console.log("rootViewBox:", this.rootParams.rootViewBox);
 			this.updateRootViewBox();
-			// 全ての子要素をg要素に詰める(パン・ズーム時の表示/非表示制御用)
-			moveChild(this.svgElem);
+			// パン・ズーム時の表示/非表示制御用にg要素を作成
+			this.createRootGroups();
 			this.parseSVG(this.svgElem, false);
 			this.dynamicLoad();
 		} else {
@@ -112,12 +119,20 @@ SVGMapObject.prototype = {
 	},
 	
 	setPointerEvents : function() {
+		this.svgElem.addEventListener("contextmenu", function(evt) { evt.preventDefault(); }, false);
 		var that = this;
-		this.svgElem.addEventListener("mousedown", function(evt) { return that.startPan(evt) }, false);
-		this.svgElem.addEventListener("mouseup", function(evt) { that.endPan(evt) }, false);
-		this.svgElem.addEventListener("mousemove", function(evt) { return that.processPan(evt) }, false);
-		this.svgElem.addEventListener("resize", function(evt) { that.refreshWindowSize() }, false);
-		this.svgElem.addEventListener("DOMMouseScroll", function(evt) { that.wheelZoom(evt) }, false);
+		if (isSP) {
+			this.svgElem.addEventListener("touchstart", function(evt) { return that.startPan(evt) }, false);
+			this.svgElem.addEventListener("touchend", function(evt) { that.endPan(evt) }, false);
+			this.svgElem.addEventListener("touchmove", function(evt) { return that.showPanning(evt) }, false);
+			this.svgElem.addEventListener("resize", function(evt) { that.refreshWindowSize() }, false);
+		} else {
+			this.svgElem.addEventListener("mousedown", function(evt) { return that.startPan(evt) }, false);
+			this.svgElem.addEventListener("mouseup", function(evt) { that.endPan(evt) }, false);
+			this.svgElem.addEventListener("mousemove", function(evt) { return that.showPanning(evt) }, false);
+			this.svgElem.addEventListener("resize", function(evt) { that.refreshWindowSize() }, false);
+			this.svgElem.addEventListener("DOMMouseScroll", function(evt) { that.wheelZoom(evt) }, false);
+		}
 	},
 	
 	getCanvasSize : function(element) {
@@ -143,6 +158,22 @@ SVGMapObject.prototype = {
 								+ this.rootParams.rootViewBox.width.toString() + " "
 								+ this.rootParams.rootViewBox.height.toString();
 		this.svgElem.setAttribute("viewBox", newViewBox);
+	},
+
+	// パン・ズーム時の表示/非表示制御用にg要素を作成
+	createRootGroups : function() {
+		var nodes = this.svgElem.childNodes.length - 1;
+		var mapRoot = document.createElementNS(NS_SVG, "g");
+		mapRoot.setAttribute("id", ID_MAPROOT);
+		this.svgElem.appendChild(mapRoot);
+		for (var i = 0; i < nodes; i++) {
+			mapRoot.appendChild(this.svgElem.firstChild);
+		}
+		this.mapRoot = mapRoot;
+		var capImage = document.createElementNS(NS_SVG, "g");
+		capImage.setAttribute("id", ID_CAPIMAGE);
+		this.svgElem.appendChild(capImage);
+		this.capImage = capImage;
 	},
 
 	/*
@@ -172,13 +203,12 @@ SVGMapObject.prototype = {
 		image.setAttribute("y", rootViewBox.y.toString());
 		image.setAttribute("width", rootViewBox.width.toString());
 		image.setAttribute("height", rootViewBox.height.toString());
-		console.log("appendChild - image");
-		this.svgElem.appendChild(image);
-		var mapRoot = getChildElemById(this.svgElem, ID_MAPROOT);
-		mapRoot.setAttribute("display", "none");
+		//console.log("appendChild - image");
+		this.capImage.appendChild(image);
+		this.mapRoot.setAttribute("display", "none");
 		this.panning = true;
 	},
-    
+
 	wheelZoom : function(evt) {
 		//console.log("wheelZoom:" + evt.detail);
 		if (evt.detail < 0) {
@@ -187,56 +217,132 @@ SVGMapObject.prototype = {
 			this.zoomdown();
 		}
 	},
-    
+
+	getTouchDistance : function(evt) {
+		var xd = evt.touches[0].pageX - evt.touches[1].pageX;
+		var yd = evt.touches[0].pageY - evt.touches[1].pageY;
+		return Math.sqrt(xd * xd + yd * yd);
+	},
+	
 	startPan : function(evt) {
+
 		//console.log("startPan");
-		if (self.port) {
-			self.port.emit("startPan");
+		if (evt.button && evt.button == 2) {
+			this.zoomingTransitionFactor = 1;
+		} else {
+			this.zoomingTransitionFactor = -1;
 		}
-		//this.panning = true; // 画像がキャプチャされるまで待機
-		this.mouseX = evt.clientX;
-		this.mouseY = evt.clientY;
+		if (isSP) {
+			// Androidでは、drawWindow呼び出し時にクラッシュするため、キャプチャは非対応
+			if (evt.touches.length > 1) {
+				this.zoomingTransitionFactor = 1;
+				this.initialTouchDistance = this.getTouchDistance(evt);
+			}
+			this.panning = true;
+			this.mouseX = evt.touches[0].pageX;
+			this.mouseY = evt.touches[0].pageY;
+		} else {
+			if (self.port) {
+				// Firefox拡張機能使用時は、drawWindowを用いてDataURLを取得
+				self.port.emit("getCapturedDataURL");
+			} else {
+				this.panning = true;
+			}
+			this.mouseX = evt.clientX;
+			this.mouseY = evt.clientY;
+		}
+		this.difX = 0;
+		this.difY = 0;
+		
 		return false; // これは画像上のドラッグ動作処理を抑制するらしい
 	},
 	
-	endPan : function(evt) {
-		//console.log("endPan");
-		if (self.port) {
-			self.port.emit("endPan");
+	endPan : function(evt) {		
+		if (this.panning) {
+			//console.log("endPan");
+			if (!isSP && self.port) {
+				// 元の要素を再表示
+				this.mapRoot.setAttribute("display", "block");
+				// キャプチャ画像を除去
+				//console.log("removeChild - image");
+				for (var i = 0; i < this.capImage.childNodes.length; i++) {
+					this.capImage.removeChild(this.capImage.childNodes[i]);
+				}
+			}
+			this.panning = false;
+			this.setSvgTransform("matrix(1,0,0,1,0,0)");
+			if (this.zoomingTransitionFactor != -1) {
+				this.zoom(1/this.zoomingTransitionFactor);
+			} else {
+				var s2c = getRootSvg2Canvas(this.rootParams.rootViewBox, this.rootParams.mapCanvasSize);
+				this.rootParams.rootViewBox.x -= this.difX / s2c.a;
+				this.rootParams.rootViewBox.y -= this.difY / s2c.d;
+				this.updateRootViewBox();
+				this.dynamicLoad();
+			}
 		}
-		var mapRoot = getChildElemById(this.svgElem, ID_MAPROOT);
-		mapRoot.setAttribute("display", "block");
-		var capImage = getChildElemById(this.svgElem, ID_CAPIMAGE);
-		console.log(capImage);
-		console.log("removeChild - image");
-		this.svgElem.removeChild(capImage);
-		this.panning = false;
-		this.dynamicLoad();
 	},
 	
-	processPan : function(evt) {
+	showPanning : function(evt) {
 		if (this.panning) {
-			//console.log("processPan");
-			if (self.port) {
-				self.port.emit("processPan");
+			//console.log("showPanning");
+			if (isSP) {
+				this.difX = evt.touches[0].clientX - this.mouseX;
+				this.difY = evt.touches[0].clientY - this.mouseY;
+				if (this.zoomingTransitionFactor != -1) {
+					this.zoomingTransitionFactor = this.getTouchDistance(evt) / this.initialTouchDistance;
+				}
+			} else {
+				this.difX = evt.clientX - this.mouseX;
+				this.difY = evt.clientY - this.mouseY;
 			}
-			var difX = evt.clientX - this.mouseX;
-			var difY = evt.clientY - this.mouseY;
-			//console.log("dif:" + difX + "," + difY);
-			this.shiftMap(difX , difY);
-			this.mouseX += difX;
-			this.mouseY += difY;
+			//console.log("dif:" + this.difX + "," + this.difY);
+			
+			if (this.zoomingTransitionFactor > 0) {
+				if (this.initialTouchDistance == 0) {
+					this.zoomingTransitionFactor = Math.exp(this.difY / (this.rootParams.mapCanvasSize.height / 2)) / Math.exp(0);
+				}
+				if (this.zoomingTransitionFactor < 0.1) {
+					this.zoomingTransitionFactor = 0.1;
+				}
+			}
+			this.shiftMap(this.difX, this.difY, this.zoomingTransitionFactor);
 			return false;
 		}
 		return true;
 	},
 	
-	shiftMap : function(x , y) {
+	setSvgTransform : function(tVal) {
+		this.mapRoot.setAttribute("transform", tVal);
+		if (this.capImage.hasChildNodes) {
+			for (var i = 0; i < this.capImage.childNodes.length; i++) {
+				this.capImage.childNodes[i].setAttribute("transform", tVal);
+			}
+		}
+	},
+	
+	shiftMap : function(x , y, zoomF) {
+		//console.log("shiftMap - x:" + x.toString() + ", y:" + y.toString() + ", zoomF:" + zoomF.toString());
 		var s2c = getRootSvg2Canvas(this.rootParams.rootViewBox,
 														this.rootParams.mapCanvasSize);
-		this.rootParams.rootViewBox.x -= x / s2c.a;
-		this.rootParams.rootViewBox.y -= y / s2c.d;
-		this.updateRootViewBox();
+		var tr;
+		if (zoomF != -1) {
+			var cx = this.rootParams.rootViewBox.x + 0.5 * this.rootParams.rootViewBox.width;
+			var cy = this.rootParams.rootViewBox.y + 0.5 * this.rootParams.rootViewBox.height;
+			var matrix = getMultiplyMatrix(
+				getMultiplyMatrix({ a:1, b:0, c:0, d:1, e:cx, f:cy }, { a:zoomF, b:0, c:0, d:zoomF, e:0, f:0 }),
+				{ a:1, b:0, c:0, d:1, e:-cx, f:-cy });
+			tr = "matrix("
+				+ matrix.a + ","
+				+ matrix.b + ","
+				+ matrix.c + ","
+				+ matrix.d + ","
+				+ matrix.e + ","
+				+ matrix.f + ")";
+		} else {
+			tr = "matrix(1,0,0,1," + ( x / s2c.a) + "," + ( y / s2c.d) + ")";
+		}
+		this.setSvgTransform(tr);
 	},
 	
 	zoom : function(pow) {
@@ -852,14 +958,14 @@ function getBBox( x , y , width , height ){
 	}
 }
 
-// 全ての子要素をg要素に詰める(パン・ズーム時の表示/非表示制御用)
-function moveChild(svgElem) {
-	var nodes = svgElem.childNodes.length - 1;
-	var g = document.createElementNS(NS_SVG, "g");
-	g.setAttribute("id", ID_MAPROOT);
-	svgElem.appendChild(g);
-	for (var i = 0; i < nodes; i++) {
-		g.appendChild(svgElem.firstChild);
+function checkSmartphone() { // Mobile Firefox & Firefox OS
+	console.log(navigator.userAgent);
+	if (navigator.userAgent.indexOf('Android') > 0 && navigator.userAgent.indexOf('Gecko')) {
+		console.log("is smartphone");
+		return true;
+	} else {
+		console.log("is not smartphone");
+		return false;
 	}
 }
 
