@@ -1,13 +1,27 @@
 console.log("applied htmlframe.js");
-replaceTagName("iframe", "g");
-logGCS(document);
-document.addEventListener("click", function(evt) { replaceTagName("g", "iframe"); }, false);
+if (document.documentElement) {
+	document.documentElement.setAttribute("display", "none");
+}
+document.addEventListener("DOMContentLoaded", function(evt) { onInit(); }, false);
+document.addEventListener("click", function(evt) { onClick(); }, false);
 window.addEventListener("load", function(evt) { console.log("window loaded - width:" + window.innerWidth + ", height:" + window.innerHeight); }, false);
 window.addEventListener("resize", function(evt) { console.log("window resized - width:" + window.innerWidth + ", height:" + window.innerHeight); }, false);
 
-if (window.parent != window) {
-	console.log("parent exists");
-	logGCS(window.parent.document);
+function onInit() {
+	replaceTagName("iframe", "g");
+	logGCS(document);
+	
+	if (window.parent != window) {
+		console.log("parent exists");
+		logGCS(window.parent.document);
+	}
+}
+
+function onClick() {
+	if (document.documentElement) {
+		document.documentElement.setAttribute("display", "block");
+	}
+	replaceTagName("g", "iframe");
 }
 
 function replaceTagName(fromName, toName) {

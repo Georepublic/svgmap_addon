@@ -3,6 +3,6 @@ var pageMod = require("page-mod");
 
 pageMod.PageMod({
 	include: ["*", "file://*"],
-	contentScriptWhen: "ready",
+	contentScriptWhen: "start",
 	contentScriptFile: self.data.url("htmliframe.js")
 });
