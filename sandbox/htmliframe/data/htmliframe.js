@@ -2,6 +2,9 @@ console.log("applied htmlframe.js");
 replaceTagName("iframe", "g");
 logGCS(document);
 document.addEventListener("click", function(evt) { replaceTagName("g", "iframe"); }, false);
+window.addEventListener("load", function(evt) { console.log("window loaded - width:" + window.innerWidth + ", height:" + window.innerHeight); }, false);
+window.addEventListener("resize", function(evt) { console.log("window resized - width:" + window.innerWidth + ", height:" + window.innerHeight); }, false);
+
 if (window.parent != window) {
 	console.log("parent exists");
 	logGCS(window.parent.document);

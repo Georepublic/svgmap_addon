@@ -137,7 +137,7 @@ SVGMapObject.prototype = {
 	},
 	
 	getCanvasSize : function(element) {
-		//console.log("canvasSize");
+		//console.log("getCanvasSize");
 		var w = element.width.baseVal.value;
 		var h = element.height.baseVal.value;
 		if (!w || [w == 1 && h == 1]) {
@@ -369,7 +369,7 @@ SVGMapObject.prototype = {
 	},
 
 	refreshWindowSize : function() {
-		//console.log("refreshViewPortSize()");
+		//console.log("refreshWindowSize()");
 		var prevS2C = getRootSvg2Canvas(this.rootParams.rootViewBox , this.rootParams.mapCanvasSize)
 		var pervCenterX = this.rootParams.rootViewBox.x + 0.5 * this.rootParams.rootViewBox.width;
 		var pervCenterY = this.rootParams.rootViewBox.y + 0.5 * this.rootParams.rootViewBox.height;
@@ -959,7 +959,8 @@ function getBBox( x , y , width , height ){
 }
 
 function checkSmartphone() { // Mobile Firefox & Firefox OS
-	console.log(navigator.userAgent);
+	console.log("userAgent:" + navigator.userAgent);
+	console.log("devicePixelRatio:" + window.devicePixelRatio);
 	if (navigator.userAgent.indexOf('Android') > 0 && navigator.userAgent.indexOf('Gecko')) {
 		console.log("is smartphone");
 		return true;
