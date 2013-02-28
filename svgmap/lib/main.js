@@ -25,11 +25,12 @@ pageMod.PageMod({
 		worker.port.on("gotElement", function(elementContent) {
 			console.log(elementContent);
 		});
-		worker.port.on("getCapturedDataURL", function() {
+		worker.port.on("getCapturedDataURL", function(x, y, width, height) {
+			//console.log("getCapturedDataURL - x:" + x + ", y:" + y + ", width:" + width + ", height:" + height);
 			//console.log(worker.tab.getThumbnail());
 			var window = getSelectedTabContentWindow();
 			if (window) {
-				let canvas = getCapturedCanvasForWindow(window);
+				let canvas = getCapturedCanvasForWindow(window, x, y, width, height);
 				//console.log(canvas.toDataURL());
 				worker.port.emit("gotCapturedDataURL", canvas.toDataURL());
 			}
@@ -55,17 +56,17 @@ function getSelectedTabContentWindow() {
 	return window;
 }
 
-function getCapturedCanvasForWindow(window) {
-	//console.log("getCapturedCanvasForWindow");
+function getCapturedCanvasForWindow(window, x, y, width, height) {
+	//console.log("getCapturedCanvasForWindow - x:" + x + ", y:" + y + ", width:" + width + ", height" + height);
 	let canvas = AppShellService.hiddenDOMWindow.document.createElementNS(NS_HTML, 'canvas');
 	//console.log(canvas);
 	canvas.mozOpaque = true;
-	canvas.width = window.innerWidth;
-	canvas.height = window.innerHeight;
+	canvas.width = width;
+	canvas.height = height;
 	let context = canvas.getContext("2d");
 	//console.log(context);
-	//console.log("width:" + canvas.width.toString() + ", height:" + canvas.height.toString());
-	context.drawWindow(window, 0, 0, window.innerWidth, window.innerHeight, COLOR);
+	//console.log("width:" + canvas.width + ", height:" + canvas.height);
+	context.drawWindow(window, x, y, width, height, COLOR);
 	//console.log("drawWindow completed");
 	return canvas;
 }

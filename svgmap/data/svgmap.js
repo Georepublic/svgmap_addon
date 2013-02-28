@@ -125,12 +125,13 @@ SVGMapObject.prototype = {
 			this.svgElem.addEventListener("touchstart", function(evt) { that.startPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("touchend", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("touchmove", function(evt) { that.showPanning(evt); evt.preventDefault(); }, false);
-			this.svgElem.addEventListener("resize", function(evt) { that.refreshWindowSize() }, false);
+			window.addEventListener("resize", function(evt) { that.refreshWindowSize() }, false);
 		} else {
 			this.svgElem.addEventListener("mousedown", function(evt) { return that.startPan(evt) }, false);
 			this.svgElem.addEventListener("mouseup", function(evt) { that.endPan(evt) }, false);
 			this.svgElem.addEventListener("mousemove", function(evt) { return that.showPanning(evt) }, false);
-			this.svgElem.addEventListener("resize", function(evt) { that.refreshWindowSize() }, false);
+			window.addEventListener("resize", function(evt) { that.refreshWindowSize() }, false);
+			
 			this.svgElem.addEventListener("DOMMouseScroll", function(evt) { that.wheelZoom(evt) }, false);
 		}
 	},
@@ -205,6 +206,7 @@ SVGMapObject.prototype = {
 		image.setAttribute("height", rootViewBox.height.toString());
 		//console.log("appendChild - image");
 		this.capImage.appendChild(image);
+		this.capImage.setAttribute("display", "block");
 		this.mapRoot.setAttribute("display", "none");
 		this.panning = true;
 	},
@@ -244,7 +246,7 @@ SVGMapObject.prototype = {
 		} else {
 			if (self.port) {
 				// Firefox拡張機能使用時は、drawWindowを用いてDataURLを取得
-				self.port.emit("getCapturedDataURL");
+				self.port.emit("getCapturedDataURL", 0, 0, this.rootParams.mapCanvasSize.width, this.rootParams.mapCanvasSize.height);
 			} else {
 				this.panning = true;
 			}
@@ -265,6 +267,7 @@ SVGMapObject.prototype = {
 				this.mapRoot.setAttribute("display", "block");
 				// キャプチャ画像を除去
 				//console.log("removeChild - image");
+				this.capImage.setAttribute("display", "none");
 				for (var i = 0; i < this.capImage.childNodes.length; i++) {
 					this.capImage.removeChild(this.capImage.childNodes[i]);
 				}
@@ -314,11 +317,7 @@ SVGMapObject.prototype = {
 	
 	setSvgTransform : function(tVal) {
 		this.mapRoot.setAttribute("transform", tVal);
-		if (this.capImage.hasChildNodes) {
-			for (var i = 0; i < this.capImage.childNodes.length; i++) {
-				this.capImage.childNodes[i].setAttribute("transform", tVal);
-			}
-		}
+		this.capImage.setAttribute("transform", tVal);
 	},
 	
 	shiftMap : function(x , y, zoomF) {
@@ -375,7 +374,7 @@ SVGMapObject.prototype = {
 		var pervCenterX = this.rootParams.rootViewBox.x + 0.5 * this.rootParams.rootViewBox.width;
 		var pervCenterY = this.rootParams.rootViewBox.y + 0.5 * this.rootParams.rootViewBox.height;
 		
-		this.rootParams.mapCanvasSize = this.getCanvasSize(this.element);
+		this.rootParams.mapCanvasSize = this.getCanvasSize(this.svgElem);
 		
 		this.rootParams.rootViewBox.width  = this.rootParams.mapCanvasSize.width  / prevS2C.a;
 		this.rootParams.rootViewBox.height = this.rootParams.mapCanvasSize.height / prevS2C.d;
@@ -383,6 +382,7 @@ SVGMapObject.prototype = {
 		this.rootParams.rootViewBox.x = pervCenterX - 0.5 * this.rootParams.rootViewBox.width;
 		this.rootParams.rootViewBox.y = pervCenterY - 0.5 * this.rootParams.rootViewBox.height;
 		
+		this.updateRootViewBox();
 		this.dynamicLoad();
 	},
 	
