@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <style type="text/css" media="screen">
+    body { background-color:silver }
+    
+    .box {
+        height: 200px;
+        width: 200px;
+        margin: 10px;
+        padding: 5px;
+        background-color: blue;
+        -webkit-transform: translateZ(0);
+        overflow:hidden;
+    }
+    .box:hover {
+        -webkit-transform: none;
+    }
+  </style>
+</head>
+<globalCoordinateSystem srsName="http://purl.org/crs/84" transform="matrix(100.0,0.0,0.0,-100.0,0.0,0.0)" />
+<body>
+
+    <div id="iframe-content" class="box">
+    </div>
+
+</body>
+</html>
