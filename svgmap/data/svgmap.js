@@ -234,22 +234,20 @@ SVGMapObject.prototype = {
 		} else {
 			this.zoomingTransitionFactor = -1;
 		}
+		if (self.port) {
+			// Firefox拡張機能使用時は、drawWindowを用いてDataURLを取得
+			self.port.emit("getCapturedDataURL", 0, 0, this.rootParams.mapCanvasSize.width, this.rootParams.mapCanvasSize.height);
+		} else {
+			this.panning = true;
+		}
 		if (isSP) {
-			// Androidでは、drawWindow呼び出し時にクラッシュするため、キャプチャは非対応
 			if (evt.touches.length > 1) {
 				this.zoomingTransitionFactor = 1;
 				this.initialTouchDistance = this.getTouchDistance(evt);
 			}
-			this.panning = true;
 			this.mouseX = evt.touches[0].pageX;
 			this.mouseY = evt.touches[0].pageY;
 		} else {
-			if (self.port) {
-				// Firefox拡張機能使用時は、drawWindowを用いてDataURLを取得
-				self.port.emit("getCapturedDataURL", 0, 0, this.rootParams.mapCanvasSize.width, this.rootParams.mapCanvasSize.height);
-			} else {
-				this.panning = true;
-			}
 			this.mouseX = evt.clientX;
 			this.mouseY = evt.clientY;
 		}
@@ -262,7 +260,7 @@ SVGMapObject.prototype = {
 	endPan : function(evt) {		
 		if (this.panning) {
 			//console.log("endPan");
-			if (!isSP && self.port) {
+			if (self.port) {
 				// 元の要素を再表示
 				this.mapRoot.setAttribute("display", "block");
 				// キャプチャ画像を除去
