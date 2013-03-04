@@ -4,6 +4,7 @@ if (self.port) {
 	self.port.on("getElement", function() {
 		var elements = document.getElementsByTagName("svg");
 		//console.log(window.innerWidth);
+		var idx = 0;
 		for (var i = 0; i < elements.length; i++) {
 			//self.port.emit("gotElement", elements[i].width.baseVal.value);
 			var isChild = false;
@@ -23,18 +24,19 @@ if (self.port) {
 				parent = parent.parentNode;
 			}
 			if (!isChild) {
-				svgMapObjects.push(new SVGMapObject(location.pathname, elements[i], null, null, null, null));
+				var rootParams = new Object();
+				rootParams.idx = idx;
+				svgMapObjects.push(new SVGMapObject(location.pathname, elements[i], null, null, null, rootParams));
+				idx++;
 			}
 		}
 	});
-	self.port.on("gotCapturedDataURL", function(dataURL) {
-		for (var i = 0; i < svgMapObjects.length; i++) {
-			//console.log("gotCapturedDataURL - " + dataURL);
-			var capImage = document.createElementNS(NS_SVG, "image");
-			//capImage.setAttributeNS(NS_XLINK, "href", dataURL);
-			capImage.href.baseVal = dataURL;
-			svgMapObjects[i].imageCaptured(capImage);
-		}
+	self.port.on("gotCapturedDataURL", function(idx, dataURL) {
+		//console.log("gotCapturedDataURL - idx:" idx + ", dataURL:" + dataURL);
+		var capImage = document.createElementNS(NS_SVG, "image");
+		//capImage.setAttributeNS(NS_XLINK, "href", dataURL);
+		capImage.href.baseVal = dataURL;
+		svgMapObjects[idx].imageCaptured(capImage);
 	});
 }
 
@@ -108,7 +110,6 @@ SVGMapObject.prototype = {
 				return;
 			}
 			this.parentCrs = this.crs;
-			this.rootParams = new Object();
 			this.rootParams.rootCrs = this.crs;
 			this.setPointerEvents();
 			this.rootParams.mapCanvasSize = this.getCanvasSize(this.svgElem);
@@ -149,7 +150,7 @@ SVGMapObject.prototype = {
 	},
 	
 	getCanvasSize : function(element) {
-		console.log("getCanvasSize");
+		//console.log("getCanvasSize");
 		var w = element.width.baseVal.value;
 		var h = element.height.baseVal.value;
 		var parent = (isHTML) ? element.parentNode : null;
@@ -170,12 +171,12 @@ SVGMapObject.prototype = {
 		}
 		if (parent) {
 			var borderWidth = parseInt(parent.style.borderWidth.replace("px", ""));
-			console.log("borderWidth:" + borderWidth);
+			//console.log("borderWidth:" + borderWidth);
 			w -= borderWidth * 2;
 			h -= borderWidth * 2;
 		}
-		console.log("w = " + w);
-		console.log("h = " + h);
+		//console.log("w = " + w);
+		//console.log("h = " + h);
 		return {
 			width: w,
 			height: h
@@ -288,7 +289,7 @@ SVGMapObject.prototype = {
 				y += borderWidth;
 				//console.log("x:" + x + ", y:" + y);
 			}
-			self.port.emit("getCapturedDataURL", x, y, this.rootParams.mapCanvasSize.width, this.rootParams.mapCanvasSize.height);
+			self.port.emit("getCapturedDataURL", this.rootParams.idx, x, y, this.rootParams.mapCanvasSize.width, this.rootParams.mapCanvasSize.height);
 		} else {
 			this.panning = true;
 		}
@@ -551,7 +552,7 @@ SVGMapObject.prototype = {
 				
 				// g要素を生成
 				var g = document.createElementNS(NS_SVG, "g");
-				g.setAttribute("id", path);
+				g.setAttribute("id", this.rootParams.idx.toString() + "-" + path);
 				// image/animation要素をg要素に置換
 				svgNode.parentNode.replaceChild(g, svgNode);
 				
@@ -675,12 +676,12 @@ function handleResult(svgObj, httpRes) {
 			// idを頼りに差し替え
 			for (var i = 0; i < svgObj.svgImages.length; i++) {
 				var svgImage = svgObj.svgImages[i];
-				svgImage.parentElem = document.getElementById(svgImage.imgPath);
+				svgImage.parentElem = document.getElementById(svgObj.rootParams.idx.toString() + "-" + svgImage.imgPath);
 				//console.log("svgImage.parentElem:" + svgImage.parentElem);
 			}
 			for (var i = 0; i < svgObj.svgObjects.length; i++) {
 				var svgChildObj = svgObj.svgObjects[i];
-				svgChildObj.parentElem = document.getElementById(svgChildObj.docPath);
+				svgChildObj.parentElem = document.getElementById(svgObj.rootParams.idx.toString() + "-" + svgChildObj.docPath);
 				//console.log("svgChildObj.parentElem:" + svgChildObj.parentElem);
 			}
 			
@@ -1025,20 +1026,4 @@ function checkHtml() {
 		return true;
 	}
 	return false;
-}
-
-function getChildElemById(svgElem, id) {
-	var resElem = null;
-	var svgNodes = svgElem.childNodes;
-	for (var i = 0; i < svgNodes.length; i++) {
-		var svgNode = svgNodes[i];
-		if (svgNode.nodeType != 1) {
-			continue;
-		}
-		if (svgNode.getAttribute("id") == id) {
-			resElem = svgNode;
-			break;
-		}
-	}
-	return resElem;
 }

@@ -25,14 +25,14 @@ pageMod.PageMod({
 		worker.port.on("gotElement", function(elementContent) {
 			console.log(elementContent);
 		});
-		worker.port.on("getCapturedDataURL", function(x, y, width, height) {
+		worker.port.on("getCapturedDataURL", function(idx, x, y, width, height) {
 			//console.log("getCapturedDataURL - x:" + x + ", y:" + y + ", width:" + width + ", height:" + height);
 			//console.log(worker.tab.getThumbnail());
 			var window = getSelectedTabContentWindow();
 			if (window) {
 				let canvas = getCapturedCanvasForWindow(window, x, y, width, height);
 				//console.log(canvas.toDataURL());
-				worker.port.emit("gotCapturedDataURL", canvas.toDataURL());
+				worker.port.emit("gotCapturedDataURL", idx, canvas.toDataURL());
 			}
 		});
 	}
