@@ -6,7 +6,25 @@ if (self.port) {
 		//console.log(window.innerWidth);
 		for (var i = 0; i < elements.length; i++) {
 			//self.port.emit("gotElement", elements[i].width.baseVal.value);
-			svgMapObjects.push(new SVGMapObject(location.pathname, elements[i], null, null, null, null));
+			var isChild = false;
+			var parent = elements[i].parentNode;
+			while (parent) {
+				for (var j = 0; j < elements.length; j++) {
+					if (j != i) {
+						if (parent == elements[j]) {
+							isChild = true;
+							break;
+						}
+					}
+				}
+				if (isChild) {
+					break;
+				}
+				parent = parent.parentNode;
+			}
+			if (!isChild) {
+				svgMapObjects.push(new SVGMapObject(location.pathname, elements[i], null, null, null, null));
+			}
 		}
 	});
 	self.port.on("gotCapturedDataURL", function(dataURL) {
@@ -32,6 +50,7 @@ var ID_MAPROOT = "maproot";
 var ID_CAPIMAGE = "capimage";
 
 var isSP = checkSmartphone();
+var isHTML = checkHtml();
 
 function SVGMapImage(imgPath, imgElem, imgProps, parentElem)
 {
@@ -57,17 +76,7 @@ function SVGMapObject(docPath, svgElem, animProps, parentElem, parentCrs, rootPa
 SVGMapObject.prototype = {
 	initialize : function(docPath, svgElem, animProps, parentElem, parentCrs, rootParams) {
 		//console.log("initialize");
-		//this.rootDocument = element;
-		//this.mapx = 138;
-		//this.mapy = 37;
 		this.zoomRatio = 1.41;
-		//this.mapCanvas = null;
-		//this.mapCanvasSize = null;
-		//this.rootViewBox = null;
-		//this.rootCrs = null;
-		//this.svgImages = new Array();
-		//this.svgImagesPath = new Array();
-		//this.svgImagesCRS = new Array();
 		this.svgDoc = null;
 		this.docPath = docPath;
 		this.svgElem = svgElem;
@@ -125,27 +134,48 @@ SVGMapObject.prototype = {
 			this.svgElem.addEventListener("touchstart", function(evt) { that.startPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("touchend", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("touchmove", function(evt) { that.showPanning(evt); evt.preventDefault(); }, false);
-			window.addEventListener("resize", function(evt) { that.refreshWindowSize(); }, false);
 		} else {
 			this.svgElem.addEventListener("mousedown", function(evt) { that.startPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("mouseup", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("mousemove", function(evt) { that.showPanning(evt); evt.preventDefault(); }, false);
-			window.addEventListener("resize", function(evt) { that.refreshWindowSize(); }, false);
 			
 			this.svgElem.addEventListener("DOMMouseScroll", function(evt) { that.wheelZoom(evt) }, false);
+		}
+		if (isHTML) {
+			this.svgElem.addEventListener("resize", function(evt) { that.refreshWindowSize(); }, false);
+		} else {
+			window.addEventListener("resize", function(evt) { that.refreshWindowSize(); }, false);
 		}
 	},
 	
 	getCanvasSize : function(element) {
-		//console.log("getCanvasSize");
+		console.log("getCanvasSize");
 		var w = element.width.baseVal.value;
 		var h = element.height.baseVal.value;
-		if (!w || [w == 1 && h == 1]) {
-			w = window.innerWidth;
-			h = window.innerHeight;
+		var parent = (isHTML) ? element.parentNode : null;
+		
+		if (w <= 1.0) {
+			if (parent) {
+				w = parent.offsetWidth * w;
+			} else {
+				w = window.innerWidth * w;
+			}
 		}
-		//console.log("w = " + w);
-		//console.log("h = " + h);
+		if (h <= 1.0) {
+			if (parent) {
+				h = parent.offsetHeight * h;
+			} else {
+				h = window.innerHeight * h;
+			}
+		}
+		if (parent) {
+			var borderWidth = parseInt(parent.style.borderWidth.replace("px", ""));
+			console.log("borderWidth:" + borderWidth);
+			w -= borderWidth * 2;
+			h -= borderWidth * 2;
+		}
+		console.log("w = " + w);
+		console.log("h = " + h);
 		return {
 			width: w,
 			height: h
@@ -236,7 +266,29 @@ SVGMapObject.prototype = {
 		}
 		if (self.port) {
 			// Firefox拡張機能使用時は、drawWindowを用いてDataURLを取得
-			self.port.emit("getCapturedDataURL", 0, 0, this.rootParams.mapCanvasSize.width, this.rootParams.mapCanvasSize.height);
+			var x = 0;
+			var y = 0;
+			if (isHTML) {
+				x = document.body.clientLeft;
+				y = document.body.clientTop;
+				var parent = this.svgElem.parentNode;
+				var borderWidth = parseInt(parent.style.borderWidth.replace("px", ""));
+				if (parent != document.body) {
+					while (parent) {
+						x += parent.offsetLeft;
+						y += parent.offsetTop;
+						parent = parent.offsetParent;
+					}
+				} else {
+					var rect = document.body.getBoundingClientRect();
+					x = rect.left;
+					y = rect.top;
+				}
+				x += borderWidth;
+				y += borderWidth;
+				//console.log("x:" + x + ", y:" + y);
+			}
+			self.port.emit("getCapturedDataURL", x, y, this.rootParams.mapCanvasSize.width, this.rootParams.mapCanvasSize.height);
 		} else {
 			this.panning = true;
 		}
@@ -966,6 +1018,13 @@ function checkSmartphone() { // Mobile Firefox & Firefox OS
 		console.log("is not smartphone");
 		return false;
 	}
+}
+
+function checkHtml() {
+	if (document.doctype && document.doctype.name == "html") {
+		return true;
+	}
+	return false;
 }
 
 function getChildElemById(svgElem, id) {
