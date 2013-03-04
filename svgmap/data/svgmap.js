@@ -125,12 +125,12 @@ SVGMapObject.prototype = {
 			this.svgElem.addEventListener("touchstart", function(evt) { that.startPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("touchend", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("touchmove", function(evt) { that.showPanning(evt); evt.preventDefault(); }, false);
-			window.addEventListener("resize", function(evt) { that.refreshWindowSize() }, false);
+			window.addEventListener("resize", function(evt) { that.refreshWindowSize(); }, false);
 		} else {
-			this.svgElem.addEventListener("mousedown", function(evt) { return that.startPan(evt) }, false);
-			this.svgElem.addEventListener("mouseup", function(evt) { that.endPan(evt) }, false);
-			this.svgElem.addEventListener("mousemove", function(evt) { return that.showPanning(evt) }, false);
-			window.addEventListener("resize", function(evt) { that.refreshWindowSize() }, false);
+			this.svgElem.addEventListener("mousedown", function(evt) { that.startPan(evt); evt.preventDefault(); }, false);
+			this.svgElem.addEventListener("mouseup", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
+			this.svgElem.addEventListener("mousemove", function(evt) { that.showPanning(evt); evt.preventDefault(); }, false);
+			window.addEventListener("resize", function(evt) { that.refreshWindowSize(); }, false);
 			
 			this.svgElem.addEventListener("DOMMouseScroll", function(evt) { that.wheelZoom(evt) }, false);
 		}
