@@ -1,12 +1,40 @@
+
+var NS_SVG = "http://www.w3.org/2000/svg";
+var NS_XLINK = "http://www.w3.org/1999/xlink";
+
+var STATUS_INITIALIZED = 0;
+var STATUS_LOADING = 1;
+var STATUS_LOADED = 2;
+var STATUS_FAILED = 10;
+
+var ID_MAPROOT = "maproot";
+var ID_CAPIMAGE = "capimage";
+
+var isSP = checkSmartphone();
+var isHTML = checkHtml();
+
 var svgMapObjects = [];
+
 if (self.port) {
 	// Firefox拡張機能からの呼び出し時
 	self.port.on("getElement", function() {
+		initSvgMapObjects();
+	});
+	self.port.on("gotCapturedDataURL", function(idx, dataURL) {
+		//console.log("gotCapturedDataURL - idx:" idx + ", dataURL:" + dataURL);
+		var capImage = document.createElementNS(NS_SVG, "image");
+		//capImage.setAttributeNS(NS_XLINK, "href", dataURL);
+		capImage.href.baseVal = dataURL;
+		svgMapObjects[idx].imageCaptured(capImage);
+	});
+}
+
+function initSvgMapObjects() {
+
+	if (isHTML) {
 		var elements = document.getElementsByTagName("svg");
-		//console.log(window.innerWidth);
 		var idx = 0;
 		for (var i = 0; i < elements.length; i++) {
-			//self.port.emit("gotElement", elements[i].width.baseVal.value);
 			var isChild = false;
 			var parent = elements[i].parentNode;
 			while (parent) {
@@ -24,35 +52,20 @@ if (self.port) {
 				parent = parent.parentNode;
 			}
 			if (!isChild) {
-				var rootParams = new Object();
-				rootParams.idx = idx;
-				svgMapObjects.push(new SVGMapObject(location.pathname, elements[i], null, null, null, rootParams));
+				var parent = elements[i].parentNode;
+				var div = document.createElement("div");
+				div.setAttribute("id", "map");
+				div.setAttribute("style", "width:100%; height:100%; overflow:hidden;");
+				parent.insertBefore(div, elements[i]);
+				div.appendChild(elements[i]);
+				svgMapObjects.push(new SVGMapObject(location.pathname, elements[i], null, null, null, { idx: idx }));
 				idx++;
 			}
 		}
-	});
-	self.port.on("gotCapturedDataURL", function(idx, dataURL) {
-		//console.log("gotCapturedDataURL - idx:" idx + ", dataURL:" + dataURL);
-		var capImage = document.createElementNS(NS_SVG, "image");
-		//capImage.setAttributeNS(NS_XLINK, "href", dataURL);
-		capImage.href.baseVal = dataURL;
-		svgMapObjects[idx].imageCaptured(capImage);
-	});
+	} else {
+		svgMapObjects.push(new SVGMapObject(location.pathname, document.documentElement, null, null, null, { idx: 0 }));
+	}
 }
-
-var NS_SVG = "http://www.w3.org/2000/svg";
-var NS_XLINK = "http://www.w3.org/1999/xlink";
-
-var STATUS_INITIALIZED = 0;
-var STATUS_LOADING = 1;
-var STATUS_LOADED = 2;
-var STATUS_FAILED = 10;
-
-var ID_MAPROOT = "maproot";
-var ID_CAPIMAGE = "capimage";
-
-var isSP = checkSmartphone();
-var isHTML = checkHtml();
 
 function SVGMapImage(imgPath, imgElem, imgProps, parentElem)
 {
@@ -114,7 +127,6 @@ SVGMapObject.prototype = {
 			this.setPointerEvents();
 			this.rootParams.mapCanvasSize = this.getCanvasSize(this.svgElem);
 			//console.log("mapCanvasSize:", this.rootParams["mapCanvasSize"]);
-			//this.createZoomButton(this.svgElem);
 			var viewBox = getViewBox(this.svgElem);
 			this.rootParams.rootViewBox = getRootViewBoxFromRootSVG(viewBox, this.rootParams.mapCanvasSize);
 			//console.log("rootViewBox:", this.rootParams.rootViewBox);
@@ -169,12 +181,6 @@ SVGMapObject.prototype = {
 				h = window.innerHeight * h;
 			}
 		}
-		if (parent) {
-			var borderWidth = parseInt(parent.style.borderWidth.replace("px", ""));
-			//console.log("borderWidth:" + borderWidth);
-			w -= borderWidth * 2;
-			h -= borderWidth * 2;
-		}
 		//console.log("w = " + w);
 		//console.log("h = " + h);
 		return {
@@ -208,27 +214,6 @@ SVGMapObject.prototype = {
 		this.capImage = capImage;
 	},
 
-	/*
-	createZoomButton : function(element) {
-		var buttonGroup = document.createElementNS(NS_SVG, "g");
-		var upButton = document.createElementNS(NS_SVG, "path");
-		upButton.setAttribute("d", "M 0 4 L 4 0 L 8 4 L 6 4 L 6 8 L 2 8 L 2 4 z");
-		upButton.setAttribute("stroke", "black");
-		upButton.setAttribute("fill", "white");
-		upButton.setAttribute("id", "zoomup");
-		buttonGroup.appendChild(upButton);
-		upButton.addEventListener("click", this.zoomup, false);
-		var downButton = document.createElementNS(NS_SVG, "path");
-		downButton.setAttribute("d", "M 0 14 L 4 18 L 8 14 L 6 14 L 6 10 L 2 10 L 2 14 z");
-		downButton.setAttribute("stroke", "black");
-		downButton.setAttribute("fill", "white");
-		downButton.setAttribute("id", "zoomdown");
-		buttonGroup.appendChild(downButton);
-		downButton.addEventListener("click", this.zoomdown, false);
-		element.appendChild(buttonGroup);
-	},
-	*/
-	
 	imageCaptured : function(image) {
 		var rootViewBox = this.rootParams.rootViewBox;
 		image.setAttribute("x", rootViewBox.x.toString());
@@ -1010,13 +995,13 @@ function getBBox( x , y , width , height ){
 }
 
 function checkSmartphone() { // Mobile Firefox & Firefox OS
-	console.log("userAgent:" + navigator.userAgent);
-	console.log("devicePixelRatio:" + window.devicePixelRatio);
+	//console.log("userAgent:" + navigator.userAgent);
+	//console.log("devicePixelRatio:" + window.devicePixelRatio);
 	if (navigator.userAgent.indexOf('Android') > 0 && navigator.userAgent.indexOf('Gecko')) {
-		console.log("is smartphone");
+		//console.log("is smartphone");
 		return true;
 	} else {
-		console.log("is not smartphone");
+		//console.log("is not smartphone");
 		return false;
 	}
 }
