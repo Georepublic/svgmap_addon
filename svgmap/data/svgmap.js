@@ -258,7 +258,6 @@ SVGMapObject.prototype = {
 				x = document.body.clientLeft;
 				y = document.body.clientTop;
 				var parent = this.svgElem.parentNode;
-				var borderWidth = parseInt(parent.style.borderWidth.replace("px", ""));
 				if (parent != document.body) {
 					while (parent) {
 						x += parent.offsetLeft;
@@ -270,8 +269,6 @@ SVGMapObject.prototype = {
 					x = rect.left;
 					y = rect.top;
 				}
-				x += borderWidth;
-				y += borderWidth;
 				//console.log("x:" + x + ", y:" + y);
 			}
 			self.port.emit("getCapturedDataURL", this.rootParams.idx, x, y, this.rootParams.mapCanvasSize.width, this.rootParams.mapCanvasSize.height);
