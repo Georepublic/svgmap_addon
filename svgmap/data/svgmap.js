@@ -147,10 +147,12 @@ SVGMapObject.prototype = {
 			this.svgElem.addEventListener("touchstart", function(evt) { that.startPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("touchend", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("touchmove", function(evt) { that.showPanning(evt); evt.preventDefault(); }, false);
+			this.svgElem.addEventListener("touchleave", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
 		} else {
 			this.svgElem.addEventListener("mousedown", function(evt) { that.startPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("mouseup", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("mousemove", function(evt) { that.showPanning(evt); evt.preventDefault(); }, false);
+			this.svgElem.addEventListener("mouseleave", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
 			
 			this.svgElem.addEventListener("DOMMouseScroll", function(evt) { that.wheelZoom(evt) }, false);
 		}
@@ -535,6 +537,9 @@ SVGMapObject.prototype = {
 				// g要素を生成
 				var g = document.createElementNS(NS_SVG, "g");
 				g.setAttribute("id", this.rootParams.idx.toString() + "-" + path);
+				if (ip.opacity < 1) {
+					g.setAttribute("opacity", ip.opacity.toString());
+				}
 				// image/animation要素をg要素に置換
 				svgNode.parentNode.replaceChild(g, svgNode);
 				
@@ -899,13 +904,21 @@ function getImageProps( imgE ){
 	} else if (imgE.hasAttribute("visiblemaxzoom")) {
 		maxZoom = Number(imgE.getAttribute("visiblemaxzoom"))/100;
 	}
-	
+	var opacity = 1;
+	if (imgE.hasAttribute("opacity")) {
+		opacity = Number(imgE.getAttribute("opacity"));
+	}
+//	console.log("getImageProp: Opacity:" + opacity);
+	if ( opacity > 1 || opacity < 0){
+		opacity = 1;
+	}
 	return {
 		x : x ,
 		y : y ,
 		width : width ,
 		height : height ,
 		href : href ,
+		opacity : opacity ,
 		minZoom : minZoom ,
 		maxZoom : maxZoom
 	}
