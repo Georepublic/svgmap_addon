@@ -22,10 +22,14 @@ if (self.port) {
 	});
 	self.port.on("gotCapturedDataURL", function(idx, dataURL) {
 		//console.log("gotCapturedDataURL - idx:" idx + ", dataURL:" + dataURL);
-		var capImage = document.createElementNS(NS_SVG, "image");
-		//capImage.setAttributeNS(NS_XLINK, "href", dataURL);
-		capImage.href.baseVal = dataURL;
-		svgMapObjects[idx].imageCaptured(capImage);
+		//console.log(Date.now() + "\tContentScript - gotCapturedDataURL in");
+		if (svgMapObjects[idx].mouseDown) {
+			var capImage = document.createElementNS(NS_SVG, "image");
+			//capImage.setAttributeNS(NS_XLINK, "href", dataURL);
+			capImage.href.baseVal = dataURL;
+			svgMapObjects[idx].imageCaptured(capImage);
+		}
+		//console.log(Date.now() + "\tContentScript - gotCapturedDataURL out");
 	});
 }
 
@@ -102,6 +106,7 @@ SVGMapObject.prototype = {
 		this.svgObjects = new Array(); // animation要素リスト
 		this.svgImages = new Array(); // image要素のリスト
 		this.status = STATUS_INITIALIZED;
+		this.mouseDown = false;
 		this.panning = false;
 		this.mouseX = 0;
 		this.mouseY = 0;
@@ -144,15 +149,15 @@ SVGMapObject.prototype = {
 		this.svgElem.addEventListener("contextmenu", function(evt) { evt.preventDefault(); }, false);
 		var that = this;
 		if (isSP) {
-			this.svgElem.addEventListener("touchstart", function(evt) { that.startPan(evt); evt.preventDefault(); }, false);
-			this.svgElem.addEventListener("touchend", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
+			this.svgElem.addEventListener("touchstart", function(evt) { that.mouseDown = true; that.startPan(evt); evt.preventDefault(); }, false);
+			this.svgElem.addEventListener("touchend", function(evt) { that.mouseDown = false; that.endPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("touchmove", function(evt) { that.showPanning(evt); evt.preventDefault(); }, false);
-			this.svgElem.addEventListener("touchleave", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
+			this.svgElem.addEventListener("touchleave", function(evt) { that.mouseDown = false; that.endPan(evt); evt.preventDefault(); }, false);
 		} else {
-			this.svgElem.addEventListener("mousedown", function(evt) { that.startPan(evt); evt.preventDefault(); }, false);
-			this.svgElem.addEventListener("mouseup", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
+			this.svgElem.addEventListener("mousedown", function(evt) { that.mouseDown = true; that.startPan(evt); evt.preventDefault(); }, false);
+			this.svgElem.addEventListener("mouseup", function(evt) { that.mouseDown = false; that.endPan(evt); evt.preventDefault(); }, false);
 			this.svgElem.addEventListener("mousemove", function(evt) { that.showPanning(evt); evt.preventDefault(); }, false);
-			this.svgElem.addEventListener("mouseleave", function(evt) { that.endPan(evt); evt.preventDefault(); }, false);
+			this.svgElem.addEventListener("mouseleave", function(evt) { that.mouseDown = false; that.endPan(evt); evt.preventDefault(); }, false);
 			
 			this.svgElem.addEventListener("DOMMouseScroll", function(evt) { that.wheelZoom(evt) }, false);
 		}
@@ -222,11 +227,13 @@ SVGMapObject.prototype = {
 		image.setAttribute("y", rootViewBox.y.toString());
 		image.setAttribute("width", rootViewBox.width.toString());
 		image.setAttribute("height", rootViewBox.height.toString());
-		//console.log("appendChild - image");
-		this.capImage.appendChild(image);
-		this.capImage.setAttribute("display", "block");
-		this.mapRoot.setAttribute("display", "none");
-		this.panning = true;
+		if (this.mouseDown) {
+			this.panning = true;
+			//console.log("appendChild - image");
+			this.capImage.appendChild(image);
+			this.capImage.setAttribute("display", "block");
+			this.mapRoot.setAttribute("display", "none");
+		}
 	},
 
 	wheelZoom : function(evt) {
@@ -273,7 +280,9 @@ SVGMapObject.prototype = {
 				}
 				//console.log("x:" + x + ", y:" + y);
 			}
-			self.port.emit("getCapturedDataURL", this.rootParams.idx, x, y, this.rootParams.mapCanvasSize.width, this.rootParams.mapCanvasSize.height);
+			//console.log(Date.now() + "\tContentScript - startPan - before getCapturedDataURL");
+			self.port.emit("getCapturedDataURL", this.rootParams.idx, x, y, this.rootParams.mapCanvasSize.width, this.rootParams.mapCanvasSize.height, isSP);
+			//console.log(Date.now() + "\tContentScript - startPan - after getCapturedDataURL");
 		} else {
 			this.panning = true;
 		}
@@ -294,7 +303,7 @@ SVGMapObject.prototype = {
 		return false; // これは画像上のドラッグ動作処理を抑制するらしい
 	},
 	
-	endPan : function(evt) {		
+	endPan : function(evt) {
 		if (this.panning) {
 			//console.log("endPan");
 			if (self.port) {

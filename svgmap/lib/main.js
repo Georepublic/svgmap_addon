@@ -25,15 +25,19 @@ pageMod.PageMod({
 		worker.port.on("gotElement", function(elementContent) {
 			console.log(elementContent);
 		});
-		worker.port.on("getCapturedDataURL", function(idx, x, y, width, height) {
+		worker.port.on("getCapturedDataURL", function(idx, x, y, width, height, isSP) {
 			//console.log("getCapturedDataURL - x:" + x + ", y:" + y + ", width:" + width + ", height:" + height);
 			//console.log(worker.tab.getThumbnail());
+			//console.log(Date.now() + "\tMainProgram - getCapturedDataURL in");
 			var window = getSelectedTabContentWindow();
 			if (window) {
-				let canvas = getCapturedCanvasForWindow(window, x, y, width, height);
+				//console.log(Date.now() + "\tMainProgram - getCapturedDataURL - before getCapturedCanvasForWindow");
+				let canvas = getCapturedCanvasForWindow(window, x, y, width, height, isSP);
+				//console.log(Date.now() + "\tMainProgram - getCapturedDataURL - after getCapturedCanvasForWindow");
 				//console.log(canvas.toDataURL());
 				worker.port.emit("gotCapturedDataURL", idx, canvas.toDataURL());
 			}
+			//console.log(Date.now() + "\tMainProgram - getCapturedDataURL out");
 		});
 	}
 });
@@ -56,14 +60,20 @@ function getSelectedTabContentWindow() {
 	return window;
 }
 
-function getCapturedCanvasForWindow(window, x, y, width, height) {
+function getCapturedCanvasForWindow(window, x, y, width, height, isSP) {
 	//console.log("getCapturedCanvasForWindow - x:" + x + ", y:" + y + ", width:" + width + ", height" + height);
 	let canvas = AppShellService.hiddenDOMWindow.document.createElementNS(NS_HTML, 'canvas');
 	//console.log(canvas);
 	canvas.mozOpaque = true;
-	canvas.width = width;
-	canvas.height = height;
+	var scale = 1.0;
+	
+	if (isSP && width > 480) {
+		scale = 0.5;
+	}
+	canvas.width = width * scale;
+	canvas.height = height * scale;
 	let context = canvas.getContext("2d");
+	context.scale(scale, scale);
 	//console.log(context);
 	//console.log("width:" + canvas.width + ", height:" + canvas.height);
 	context.drawWindow(window, x, y, width, height, COLOR);
