@@ -259,6 +259,7 @@ SVGMapObject.prototype = {
 		} else {
 			this.zoomingTransitionFactor = -1;
 		}
+		/*
 		if (self.port) {
 			// Firefox拡張機能使用時は、drawWindowを用いてDataURLを取得
 			var x = 0;
@@ -286,6 +287,8 @@ SVGMapObject.prototype = {
 		} else {
 			this.panning = true;
 		}
+		*/
+		this.panning = true;
 		if (isSP) {
 			if (evt.touches.length > 1) {
 				this.zoomingTransitionFactor = 1;
@@ -306,6 +309,7 @@ SVGMapObject.prototype = {
 	endPan : function(evt) {
 		if (this.panning) {
 			//console.log("endPan");
+			/*
 			if (self.port) {
 				// 元の要素を再表示
 				this.mapRoot.setAttribute("display", "block");
@@ -316,6 +320,7 @@ SVGMapObject.prototype = {
 					this.capImage.removeChild(this.capImage.childNodes[i]);
 				}
 			}
+			*/
 			this.panning = false;
 			this.setSvgTransform("matrix(1,0,0,1,0,0)");
 			if (this.zoomingTransitionFactor != -1) {
